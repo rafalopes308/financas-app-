@@ -1,3 +1,5 @@
+import { useAuth } from "./AuthContext";
+import Login from "./Login";
 import { useState, useEffect, useRef } from "react";
 
 // ─── helpers ───────────────────────────────────────────────────────────────
@@ -36,6 +38,8 @@ const useLS = (key, def) => {
 
 // ─── main app ──────────────────────────────────────────────────────────────
 export default function App() {
+  const { user, logout } = useAuth();
+  if (!user) return <Login />;
   const [transactions, setTransactions] = useLS("fin_transactions", []);
   const [accounts, setAccounts]         = useLS("fin_accounts", []);
   const [recurrings, setRecurrings]     = useLS("fin_recurrings", []);
