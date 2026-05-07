@@ -2,6 +2,7 @@ import { useAuth } from "./AuthContext";
 import Login from "./Login";
 import { useState, useEffect, useRef } from "react";
 import { useFirestoreData } from "./useFirestore";
+import { getNthBusinessDay } from "./businessDays";
 
 // ─── helpers ───────────────────────────────────────────────────────────────
 const fmt = (v) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v ?? 0);
@@ -52,11 +53,11 @@ export default function App() {
   const [toast, setToast]               = useState(null);
   const [form, setForm]                 = useState(emptyForm());
   const [accountForm, setAccountForm]   = useState({ name: "", balance: "", color: "#22c55e" });
-  const [recurringForm, setRecurringForm] = useState({ type: "despesa", desc: "", value: "", category: "", account: "", notes: "", day: "1" });
+  const [recurringForm, setRecurringForm] = useState({ type: "despesa", desc: "", value: "", category: "", account: "", notes: "", day: "1", dayType: "calendar" });
   const [editingRecurringId, setEditingRecurringId] = useState(null);
 
   function emptyForm() {
-    return { type: "despesa", desc: "", value: "", category: "", date: today(), account: "", notes: "", recurring: false, reminderDay: "", reminderPaidMonth: "" };
+    return { type: "despesa", desc: "", value: "", category: "", date: today(), account: "", notes: "", recurring: false, recurringDayType: "calendar", reminderDay: "", reminderPaidMonth: "" };
   }
   function today() { return TODAY.toISOString().split("T")[0]; }
 
@@ -84,7 +85,8 @@ export default function App() {
   useEffect(() => {
     const ym = `${year}-${String(month + 1).padStart(2, "0")}`;
     recurrings.forEach((r) => {
-      const dateForMonth = `${ym}-${String(r.day).padStart(2, "0")}`;
+      const actualDay = r.dayType === "business" ? getNthBusinessDay(year, month, parseInt(r.day) || 1) : (parseInt(r.day) || 1);
+      const dateForMonth = `${ym}-${String(actualDay).padStart(2, "0")}`;
       setTransactions((prev) => {
         const alreadyExists = prev.some((t) => {
           if (t.recurringId !== r.id) return false;
@@ -119,7 +121,7 @@ export default function App() {
 
     if (form.recurring) {
       const day = String(new Date(form.date + "T12:00:00").getDate()).padStart(2, "0");
-      const rec = { id: Date.now(), type: form.type, desc: form.desc, value: val, category: form.category, account: form.account, notes: form.notes, day };
+      const rec = { id: Date.now(), type: form.type, desc: form.desc, value: val, category: form.category, account: form.account, notes: form.notes, day, dayType: form.recurringDayType || "calendar" };
       setRecurrings((prev) => [...prev, rec]);
       showToast("Lançamento recorrente criado! 🔁");
       setForm(emptyForm());
@@ -201,7 +203,7 @@ export default function App() {
   };
 
   const openEditRecurring = (r) => {
-    setRecurringForm({ type: r.type, desc: r.desc, value: String(r.value), category: r.category, account: r.account || "", notes: r.notes || "", day: r.day });
+    setRecurringForm({ type: r.type, desc: r.desc, value: String(r.value), category: r.category, account: r.account || "", notes: r.notes || "", day: r.day, dayType: r.dayType || "calendar" });
     setEditingRecurringId(r.id);
     setModal("editRecurring");
   };
@@ -381,10 +383,22 @@ export default function App() {
           </div>
 
           {!editingId && (
-            <label style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16, fontSize: 14, cursor: "pointer" }}>
-              <input type="checkbox" checked={form.recurring} onChange={(e) => setForm((f) => ({ ...f, recurring: e.target.checked }))} style={{ width: 16, height: 16, accentColor: "#22c55e" }} />
-              <span>🔁 Lançamento recorrente (todo mês)</span>
-            </label>
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8, fontSize: 14, cursor: "pointer" }}>
+                <input type="checkbox" checked={form.recurring} onChange={(e) => setForm((f) => ({ ...f, recurring: e.target.checked }))} style={{ width: 16, height: 16, accentColor: "#22c55e" }} />
+                <span>🔁 Lançamento recorrente (todo mês)</span>
+              </label>
+              {form.recurring && (
+                <div style={{ background: "#f0fdf4", border: "1px solid #86efac", borderRadius: 10, padding: "10px 14px" }}>
+                  <p style={{ margin: "0 0 8px", fontSize: 12, color: "#15803d", fontWeight: 600 }}>Repetir mensalmente:</p>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button type="button" onClick={() => setForm((f) => ({ ...f, recurringDayType: "calendar" }))} style={{ flex: 1, padding: "8px 4px", border: `2px solid ${(form.recurringDayType || "calendar") === "calendar" ? "#22c55e" : "#e5e7eb"}`, borderRadius: 8, background: (form.recurringDayType || "calendar") === "calendar" ? "#fff" : "#fafafa", color: (form.recurringDayType || "calendar") === "calendar" ? "#15803d" : "#888", fontWeight: 600, fontSize: 12, cursor: "pointer", fontFamily: "'DM Sans',sans-serif" }}>📅 Dia do mês</button>
+                    <button type="button" onClick={() => setForm((f) => ({ ...f, recurringDayType: "business" }))} style={{ flex: 1, padding: "8px 4px", border: `2px solid ${form.recurringDayType === "business" ? "#22c55e" : "#e5e7eb"}`, borderRadius: 8, background: form.recurringDayType === "business" ? "#fff" : "#fafafa", color: form.recurringDayType === "business" ? "#15803d" : "#888", fontWeight: 600, fontSize: 12, cursor: "pointer", fontFamily: "'DM Sans',sans-serif" }}>💼 Dia útil</button>
+                  </div>
+                  <p style={{ margin: "8px 0 0", fontSize: 11, color: "#15803d" }}>{form.recurringDayType === "business" ? `Será lançado todo ${new Date(form.date+"T12:00:00").getDate()}º dia útil do mês` : `Será lançado todo dia ${new Date(form.date+"T12:00:00").getDate()} do mês`}</p>
+                </div>
+              )}
+            </div>
           )}
 
           <button onClick={saveTransaction} style={{ width: "100%", padding: 13, background: TYPE_CONFIG[form.type].color, color: "#fff", border: "none", borderRadius: 10, cursor: "pointer", fontWeight: 700, fontSize: 15, fontFamily: "'DM Sans',sans-serif", marginBottom: 8 }}>
@@ -413,9 +427,16 @@ export default function App() {
             <option value="">Categoria *</option>
             {CATEGORIES[recurringForm.type]?.map((c) => <option key={c}>{c}</option>)}
           </select>
-          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
-            <label style={{ fontSize: 14, color: "#555", whiteSpace: "nowrap" }}>Todo dia</label>
-            <input type="number" min="1" max="31" value={recurringForm.day} onChange={(e) => setRecurringForm((f) => ({ ...f, day: e.target.value }))} style={{ ...inputSt, marginBottom: 0, width: 80 }} />
+          <div style={{ marginBottom: 12 }}>
+            <p style={{ margin: "0 0 6px", fontSize: 12, color: "#555", fontWeight: 600 }}>Repetir mensalmente:</p>
+            <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+              <button type="button" onClick={() => setRecurringForm((f) => ({ ...f, dayType: "calendar" }))} style={{ flex: 1, padding: "8px 4px", border: `2px solid ${(recurringForm.dayType || "calendar") === "calendar" ? "#22c55e" : "#e5e7eb"}`, borderRadius: 8, background: (recurringForm.dayType || "calendar") === "calendar" ? "#f0fdf4" : "#fafafa", color: (recurringForm.dayType || "calendar") === "calendar" ? "#15803d" : "#888", fontWeight: 600, fontSize: 12, cursor: "pointer", fontFamily: "'DM Sans',sans-serif" }}>📅 Dia do mês</button>
+              <button type="button" onClick={() => setRecurringForm((f) => ({ ...f, dayType: "business" }))} style={{ flex: 1, padding: "8px 4px", border: `2px solid ${recurringForm.dayType === "business" ? "#22c55e" : "#e5e7eb"}`, borderRadius: 8, background: recurringForm.dayType === "business" ? "#f0fdf4" : "#fafafa", color: recurringForm.dayType === "business" ? "#15803d" : "#888", fontWeight: 600, fontSize: 12, cursor: "pointer", fontFamily: "'DM Sans',sans-serif" }}>💼 Dia útil</button>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <label style={{ fontSize: 14, color: "#555", whiteSpace: "nowrap" }}>{recurringForm.dayType === "business" ? "º dia útil:" : "Todo dia:"}</label>
+              <input type="number" min="1" max="31" value={recurringForm.day} onChange={(e) => setRecurringForm((f) => ({ ...f, day: e.target.value }))} style={{ ...inputSt, marginBottom: 0, width: 80 }} />
+            </div>
           </div>
           <select value={recurringForm.account} onChange={(e) => setRecurringForm((f) => ({ ...f, account: e.target.value }))} style={inputSt}>
             <option value="">Conta (opcional)</option>
@@ -755,7 +776,7 @@ function Recorrentes({ recurrings, deleteRecurring, openEditRecurring, masked })
                   <div style={{ width:40,height:40,borderRadius:12,background:cfg.light,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18 }}>{ICONS[r.category]||"📌"}</div>
                   <div>
                     <p style={{ margin:0,fontWeight:600,fontSize:14 }}>{r.desc}</p>
-                    <p style={{ margin:0,fontSize:11,color:"#aaa" }}>{r.category} · Todo dia {r.day}</p>
+                    <p style={{ margin:0,fontSize:11,color:"#aaa" }}>{r.category} · Todo {r.dayType === "business" ? `${r.day}º dia útil` : `dia ${r.day}`}</p>
                   </div>
                 </div>
                 <div style={{ display:"flex",alignItems:"center",gap:10 }}>
