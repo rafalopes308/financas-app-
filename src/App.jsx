@@ -1,6 +1,7 @@
 import { useAuth } from "./AuthContext";
 import Login from "./Login";
 import { useState, useEffect, useRef } from "react";
+import { useFirestoreData } from "./useFirestore";
 
 // ─── helpers ───────────────────────────────────────────────────────────────
 const fmt = (v) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v ?? 0);
@@ -39,10 +40,9 @@ const useLS = (key, def) => {
 // ─── main app ──────────────────────────────────────────────────────────────
 export default function App() {
   const { user, logout } = useAuth();
-  if (!user) return <Login />;
-  const [transactions, setTransactions] = useLS("fin_transactions", []);
-  const [accounts, setAccounts]         = useLS("fin_accounts", []);
-  const [recurrings, setRecurrings]     = useLS("fin_recurrings", []);
+  const [transactions, setTransactions] = useFirestoreData(user?.uid, "transactions", []);
+  const [accounts, setAccounts]         = useFirestoreData(user?.uid, "accounts", []);
+  const [recurrings, setRecurrings]     = useFirestoreData(user?.uid, "recurrings", []);
   const [page, setPage]                 = useState("dashboard");
   const [month, setMonth]               = useState(TODAY.getMonth());
   const [year]                          = useState(TODAY.getFullYear());

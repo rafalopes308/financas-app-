@@ -21,30 +21,22 @@ export default function Login() {
     }
   };
 
-  const inp = {
-    width:"100%", padding:"11px 14px", border:"1px solid #e5e7eb",
-    borderRadius:10, fontSize:14, outline:"none",
-    background:"#fafafa", boxSizing:"border-box"
-  };
-
   return (
-    <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"#fafafa",fontFamily:"'DM Sans',sans-serif"}}>
+    <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"#fafafa",fontFamily:"'DM Sans', sans-serif"}}>
       <div style={{background:"#fff",border:"1px solid #e5e9e2",borderRadius:16,padding:"40px 36px",width:"100%",maxWidth:380,boxShadow:"0 4px 24px rgba(0,0,0,0.06)"}}>
         <h2 style={{margin:"0 0 8px",fontSize:22,color:"#333"}}>Finanças</h2>
         <p style={{margin:"0 0 28px",color:"#888",fontSize:14}}>Faça login para continuar</p>
         <form onSubmit={handleLogin}>
           <div style={{marginBottom:16}}>
             <label style={{display:"block",fontSize:13,color:"#555",marginBottom:6}}>E-mail</label>
-            <input type="email" value={email} onChange={(e)=>setEmail(e.target.value)} placeholder="seu@email.com" required style={inp}/>
+            <input type="email" value={email} onChange={(e)=>setEmail(e.target.value)} placeholder="seu@email.com" required style={{width:"100%",padding:"11px 14px",border:"1px solid #e5e7eb",borderRadius:10,fontSize:14,outline:"none",background:"#fafafa",boxSizing:"border-box"}}/>
           </div>
           <div style={{marginBottom:24}}>
             <label style={{display:"block",fontSize:13,color:"#555",marginBottom:6}}>Senha</label>
-            <input type="password" value={senha} onChange={(e)=>setSenha(e.target.value)} placeholder="••••••••" required style={inp}/>
+            <input type="password" value={senha} onChange={(e)=>setSenha(e.target.value)} placeholder="••••••••" required style={{width:"100%",padding:"11px 14px",border:"1px solid #e5e7eb",borderRadius:10,fontSize:14,outline:"none",background:"#fafafa",boxSizing:"border-box"}}/>
           </div>
           {erro && <p style={{color:"#e53e3e",fontSize:13,marginBottom:16,textAlign:"center"}}>{erro}</p>}
-          <button type="submit" disabled={carregando} style={{width:"100%",padding:"12px",background:"#333",color:"#fff",border:"none",borderRadius:10,fontSize:15,cursor:"pointer",opacity:carregando?0.7:1}}>
-            {carregando ? "Entrando..." : "Entrar"}
-          </button>
+          <button type="submit" disabled={carregando} style={{width:"100%",padding:"12px",background:"#333",color:"#fff",border:"none",borderRadius:10,fontSize:15,cursor:"pointer",opacity:carregando?0.7:1}}>{carregando?"Entrando...":"Entrar"}</button>
         </form>
       </div>
     </div>
