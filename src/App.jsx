@@ -38,9 +38,20 @@ const useLS = (key, def) => {
   return [val, setVal];
 };
 
+function useIsMobile() {
+  const [m, setM] = useState(typeof window !== "undefined" && window.innerWidth < 768);
+  useEffect(() => {
+    const h = () => setM(window.innerWidth < 768);
+    window.addEventListener("resize", h);
+    return () => window.removeEventListener("resize", h);
+  }, []);
+  return m;
+}
+
 // ─── main app ──────────────────────────────────────────────────────────────
 export default function App() {
   const { user, logout } = useAuth();
+  const isMobile = useIsMobile();
   const [transactions, setTransactions] = useFirestoreData(user?.uid, "transactions", []);
   const [accounts, setAccounts]         = useFirestoreData(user?.uid, "accounts", []);
   const [recurrings, setRecurrings]     = useFirestoreData(user?.uid, "recurrings", []);
@@ -272,7 +283,7 @@ export default function App() {
       )}
 
       {/* Sidebar */}
-      <aside style={{ position: "fixed", left: 0, top: 0, bottom: 0, width: 224, background: "#fff", borderRight: "1px solid #e5e9e2", display: "flex", flexDirection: "column", zIndex: 100 }}>
+      <aside style={{ position: "fixed", left: 0, top: 0, bottom: 0, width: 224, background: "#fff", borderRight: "1px solid #e5e9e2", display: isMobile ? "none" : "flex", flexDirection: "column", zIndex: 100 }}>
         <div style={{ padding: "24px 20px 20px", borderBottom: "1px solid #e5e9e2" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <div style={{ width: 34, height: 34, background: "linear-gradient(135deg,#22c55e,#15803d)", borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17 }}>💰</div>
@@ -304,9 +315,9 @@ export default function App() {
       </aside>
 
       {/* Main */}
-      <main style={{ marginLeft: 224, padding: "32px 40px", minHeight: "100vh" }}>
+      <main style={{ marginLeft: isMobile ? 0 : 224, padding: isMobile ? "20px 14px 90px" : "32px 40px", minHeight: "100vh" }}>
         {/* Header */}
-        <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 32 }}>
+        <header style={{ display: "flex", alignItems: isMobile ? "stretch" : "center", justifyContent: "space-between", marginBottom: isMobile ? 20 : 32, flexDirection: isMobile ? "column" : "row", gap: isMobile ? 12 : 0 }}>
           <div>
             <p style={{ margin: 0, fontSize: 13, color: "#888" }}>{greet()}</p>
             <h1 style={{ margin: "2px 0 0", fontSize: 26, fontWeight: 700, letterSpacing: -0.5 }}>
@@ -338,6 +349,22 @@ export default function App() {
         {page === "contas"      && <Contas accounts={accounts} setAccounts={setAccounts} masked={masked} setModal={setModal} />}
         {page === "relatorios"  && <Relatorios monthTx={monthTx} totalReceita={totalReceita} totalDespesa={totalDespesa} totalInvestimento={totalInvestimento} masked={masked} gastosPorCat={gastosPorCat} maxCat={maxCat} chartData={chartData} comparativo={comparativo} month={month} MONTHS={MONTHS} />}
       </main>
+
+      {isMobile && (
+        <nav style={{ position:"fixed",bottom:0,left:0,right:0,background:"#fff",borderTop:"1px solid #e5e9e2",display:"flex",zIndex:100,paddingBottom:"env(safe-area-inset-bottom)" }}>
+          {[
+            { id:"dashboard", icon:"🏠", label:"Início" },
+            { id:"lancamentos", icon:"📋", label:"Lanç." },
+            { id:"recorrentes", icon:"🔁", label:"Recor." },
+            { id:"contas", icon:"🏦", label:"Contas" },
+            { id:"relatorios", icon:"📊", label:"Relat." },
+          ].map((item) => (
+            <button key={item.id} onClick={() => setPage(item.id)} style={{ flex:1,padding:"10px 4px",background:"transparent",border:"none",borderTop:`3px solid ${page===item.id?"#22c55e":"transparent"}`,cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:2,color:page===item.id?"#15803d":"#888",fontSize:10,fontWeight:page===item.id?600:400,fontFamily:"'DM Sans',sans-serif" }}>
+              <span style={{ fontSize:18 }}>{item.icon}</span>{item.label}
+            </button>
+          ))}
+        </nav>
+      )}
 
       {/* Modal Add/Edit */}
       {(modal === "add") && (
@@ -480,8 +507,8 @@ export default function App() {
 // ─── overlay ───────────────────────────────────────────────────────────────
 function Overlay({ children, onClose }) {
   return (
-    <div style={{ position:"fixed",inset:0,background:"rgba(0,0,0,.45)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:200 }}>
-      <div style={{ position:"relative",background:"#fff",borderRadius:20,padding:32,width:460,maxHeight:"90vh",overflowY:"auto",boxShadow:"0 24px 64px rgba(0,0,0,.22)" }}>
+    <div style={{ position:"fixed",inset:0,background:"rgba(0,0,0,.45)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:200,padding:16,boxSizing:"border-box" }}>
+      <div style={{ position:"relative",background:"#fff",borderRadius:20,padding:24,width:"100%",maxWidth:460,maxHeight:"90vh",overflowY:"auto",boxShadow:"0 24px 64px rgba(0,0,0,.22)" }}>
         <button onClick={onClose} style={{ position:"absolute",top:16,right:16,background:"none",border:"none",cursor:"pointer",fontSize:18,color:"#bbb",lineHeight:1,padding:4,borderRadius:6 }}>✕</button>
         {children}
       </div>
@@ -618,7 +645,7 @@ function BarChart({ data }) {
 function Dashboard({ totalReceita, totalDespesa, totalInvestimento, saldoGeral, saldoMensal, accounts, topGastos, gastosPorCat, maxCat, masked, setModal, setForm, emptyForm, comparativo, chartData, monthTx, month, MONTHS, lembretes, dismissReminder }) {
   return (
     <div style={{ animation:"fadeUp .4s ease",display:"flex",flexDirection:"column",gap:20 }}>
-      <div style={{ display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:16 }}>
+      <div style={{ display:"grid",gridTemplateColumns:isMobile?"repeat(2,1fr)":"repeat(4,1fr)",gap:isMobile?10:16 }}>
         <SCard title="Receitas" value={masked(totalReceita)} color="#16a34a" bg="#f0fdf4" />
         <SCard title="Despesas" value={masked(totalDespesa)} color="#dc2626" bg="#fef2f2" />
         <SCard title="Investimentos" value={masked(totalInvestimento)} color="#7c3aed" bg="#f5f3ff" />
@@ -640,7 +667,7 @@ function Dashboard({ totalReceita, totalDespesa, totalInvestimento, saldoGeral, 
         </div>
       </Card>
 
-      <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:20 }}>
+      <div style={{ display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:isMobile?14:20 }}>
         {/* donut chart */}
         <Card>
           <SectionTitle color="#ef4444">Gastos por Categoria</SectionTitle>
@@ -796,7 +823,7 @@ function Recorrentes({ recurrings, deleteRecurring, openEditRecurring, masked })
 function Contas({ accounts, setAccounts, masked, setModal }) {
   return (
     <div style={{ animation:"fadeUp .4s ease" }}>
-      <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:20 }}>
+      <div style={{ display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:isMobile?14:20 }}>
         {accounts.map((a) => (
           <Card key={a.id} style={{ borderTop:`4px solid ${a.color}` }}>
             <div style={{ display:"flex",alignItems:"center",gap:12,marginBottom:16 }}>
@@ -828,7 +855,7 @@ function Relatorios({ monthTx, totalReceita, totalDespesa, totalInvestimento, ma
   const investRate  = totalReceita > 0 ? ((totalInvestimento / totalReceita) * 100).toFixed(0) : 0;
   return (
     <div style={{ animation:"fadeUp .4s ease",display:"flex",flexDirection:"column",gap:20 }}>
-      <div style={{ display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:16 }}>
+      <div style={{ display:"grid",gridTemplateColumns:isMobile?"repeat(2,1fr)":"repeat(4,1fr)",gap:isMobile?10:16 }}>
         <SCard title="Receitas" value={masked(totalReceita)} color="#16a34a" bg="#f0fdf4" />
         <SCard title="Despesas" value={masked(totalDespesa)} color="#dc2626" bg="#fef2f2" />
         <SCard title="Investimentos" value={masked(totalInvestimento)} color="#7c3aed" bg="#f5f3ff" />
@@ -847,7 +874,7 @@ function Relatorios({ monthTx, totalReceita, totalDespesa, totalInvestimento, ma
         </div>
       </Card>
 
-      <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:20 }}>
+      <div style={{ display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:isMobile?14:20 }}>
         <Card>
           <SectionTitle color="#ef4444">Gastos por Categoria</SectionTitle>
           {Object.keys(gastosPorCat).length === 0
@@ -931,7 +958,7 @@ function LoganMascot() {
   useEffect(() => { const t = setInterval(next, 30000); return () => clearInterval(t); }, []);
 
   return (
-    <div style={{ position:"fixed",bottom:24,right:24,zIndex:500,display:"flex",flexDirection:"column",alignItems:"center",gap:6,userSelect:"none" }}>
+    <div style={{ position:"fixed",bottom:24,right:24,zIndex:500,display:typeof window!=="undefined"&&window.innerWidth<768?"none":"flex",flexDirection:"column",alignItems:"center",gap:6,userSelect:"none" }}>
       {/* speech bubble */}
       <div key={bubbleKey} onClick={next} style={{
         position:"relative", background:"#fff", border:"2.5px solid #111",
@@ -1002,5 +1029,5 @@ function LoganMascot() {
 
 // ─── shared styles ─────────────────────────────────────────────────────────
 const navBtnStyle = { background:"#fff",border:"1px solid #e5e9e2",borderRadius:8,padding:"6px 14px",cursor:"pointer",fontSize:16,color:"#555" };
-const inputSt = { width:"100%",padding:"11px 14px",marginBottom:12,border:"1px solid #e5e7eb",borderRadius:10,fontSize:14,outline:"none",fontFamily:"'DM Sans',sans-serif",background:"#fafafa" };
+const inputSt = { width:"100%",padding:"13px 14px",marginBottom:12,border:"1px solid #d1d5db",borderRadius:10,fontSize:16,outline:"none",fontFamily:"'DM Sans',sans-serif",background:"#fff",color:"#1a1a1a",WebkitTextFillColor:"#1a1a1a",WebkitAppearance:"none",boxSizing:"border-box" };
 const iconBtn = { background:"none",border:"none",cursor:"pointer",fontSize:15,color:"#ccc",padding:4,transition:"color .15s",fontFamily:"'DM Sans',sans-serif" };
