@@ -645,7 +645,7 @@ function BarChart({ data }) {
 function Dashboard({ totalReceita, totalDespesa, totalInvestimento, saldoGeral, saldoMensal, accounts, topGastos, gastosPorCat, maxCat, masked, setModal, setForm, emptyForm, comparativo, chartData, monthTx, month, MONTHS, lembretes, dismissReminder }) {
   return (
     <div style={{ animation:"fadeUp .4s ease",display:"flex",flexDirection:"column",gap:20 }}>
-      <div style={{ display:"grid",gridTemplateColumns:isMobile?"repeat(2,1fr)":"repeat(4,1fr)",gap:isMobile?10:16 }}>
+      <div style={{ display:"grid",gridTemplateColumns:(typeof window!=="undefined"&&window.innerWidth<768)?"repeat(2,1fr)":"repeat(4,1fr)",gap:(typeof window!=="undefined"&&window.innerWidth<768)?10:16 }}>
         <SCard title="Receitas" value={masked(totalReceita)} color="#16a34a" bg="#f0fdf4" />
         <SCard title="Despesas" value={masked(totalDespesa)} color="#dc2626" bg="#fef2f2" />
         <SCard title="Investimentos" value={masked(totalInvestimento)} color="#7c3aed" bg="#f5f3ff" />
@@ -667,7 +667,7 @@ function Dashboard({ totalReceita, totalDespesa, totalInvestimento, saldoGeral, 
         </div>
       </Card>
 
-      <div style={{ display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:isMobile?14:20 }}>
+      <div style={{ display:"grid",gridTemplateColumns:(typeof window!=="undefined"&&window.innerWidth<768)?"1fr":"1fr 1fr",gap:(typeof window!=="undefined"&&window.innerWidth<768)?14:20 }}>
         {/* donut chart */}
         <Card>
           <SectionTitle color="#ef4444">Gastos por Categoria</SectionTitle>
@@ -823,7 +823,7 @@ function Recorrentes({ recurrings, deleteRecurring, openEditRecurring, masked })
 function Contas({ accounts, setAccounts, masked, setModal }) {
   return (
     <div style={{ animation:"fadeUp .4s ease" }}>
-      <div style={{ display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:isMobile?14:20 }}>
+      <div style={{ display:"grid",gridTemplateColumns:(typeof window!=="undefined"&&window.innerWidth<768)?"1fr":"1fr 1fr",gap:(typeof window!=="undefined"&&window.innerWidth<768)?14:20 }}>
         {accounts.map((a) => (
           <Card key={a.id} style={{ borderTop:`4px solid ${a.color}` }}>
             <div style={{ display:"flex",alignItems:"center",gap:12,marginBottom:16 }}>
@@ -855,7 +855,7 @@ function Relatorios({ monthTx, totalReceita, totalDespesa, totalInvestimento, ma
   const investRate  = totalReceita > 0 ? ((totalInvestimento / totalReceita) * 100).toFixed(0) : 0;
   return (
     <div style={{ animation:"fadeUp .4s ease",display:"flex",flexDirection:"column",gap:20 }}>
-      <div style={{ display:"grid",gridTemplateColumns:isMobile?"repeat(2,1fr)":"repeat(4,1fr)",gap:isMobile?10:16 }}>
+      <div style={{ display:"grid",gridTemplateColumns:(typeof window!=="undefined"&&window.innerWidth<768)?"repeat(2,1fr)":"repeat(4,1fr)",gap:(typeof window!=="undefined"&&window.innerWidth<768)?10:16 }}>
         <SCard title="Receitas" value={masked(totalReceita)} color="#16a34a" bg="#f0fdf4" />
         <SCard title="Despesas" value={masked(totalDespesa)} color="#dc2626" bg="#fef2f2" />
         <SCard title="Investimentos" value={masked(totalInvestimento)} color="#7c3aed" bg="#f5f3ff" />
@@ -874,7 +874,7 @@ function Relatorios({ monthTx, totalReceita, totalDespesa, totalInvestimento, ma
         </div>
       </Card>
 
-      <div style={{ display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:isMobile?14:20 }}>
+      <div style={{ display:"grid",gridTemplateColumns:(typeof window!=="undefined"&&window.innerWidth<768)?"1fr":"1fr 1fr",gap:(typeof window!=="undefined"&&window.innerWidth<768)?14:20 }}>
         <Card>
           <SectionTitle color="#ef4444">Gastos por Categoria</SectionTitle>
           {Object.keys(gastosPorCat).length === 0
@@ -958,7 +958,7 @@ function LoganMascot() {
   useEffect(() => { const t = setInterval(next, 30000); return () => clearInterval(t); }, []);
 
   return (
-    <div style={{ position:"fixed",bottom:24,right:24,zIndex:500,display:typeof window!=="undefined"&&window.innerWidth<768?"none":"flex",flexDirection:"column",alignItems:"center",gap:6,userSelect:"none" }}>
+    <div style={{ position:"fixed",bottom:24,right:24,zIndex:500,display:"flex",flexDirection:"column",alignItems:"center",gap:6,userSelect:"none" }}>
       {/* speech bubble */}
       <div key={bubbleKey} onClick={next} style={{
         position:"relative", background:"#fff", border:"2.5px solid #111",
