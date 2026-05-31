@@ -3,6 +3,7 @@ import Login from "./Login";
 import { useState, useEffect, useRef } from "react";
 import { useFirestoreData } from "./useFirestore";
 import { getNthBusinessDay } from "./businessDays";
+import { parseOFX, suggestCategory } from "./ofxParser";
 
 // ─── helpers ───────────────────────────────────────────────────────────────
 const fmt = (v) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v ?? 0);
@@ -67,6 +68,7 @@ export default function App() {
   const [accountForm, setAccountForm]   = useState({ name: "", balance: "", color: "#22c55e" });
   const [recurringForm, setRecurringForm] = useState({ type: "despesa", desc: "", value: "", category: "", account: "", notes: "", day: "1", dayType: "calendar" });
   const [editingRecurringId, setEditingRecurringId] = useState(null);
+  const [importing, setImporting] = useState(null); // null ou array de tx pra revisar
 
   function emptyForm() {
     return { type: "despesa", desc: "", value: "", category: "", date: today(), account: "", notes: "", recurring: false, recurringDayType: "calendar", reminderDay: "", reminderPaidMonth: "" };
@@ -236,6 +238,62 @@ export default function App() {
     showToast("Recorrente atualizado! ✏️");
   };
 
+  
+  const handleFileImport = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const text = await file.text();
+    const parsed = parseOFX(text);
+    if (parsed.length === 0) {
+      showToast("Nenhuma transação encontrada no arquivo", "error");
+      return;
+    }
+    // Detectar duplicatas com base no fitid
+    const existingFitids = new Set(transactions.map(t => t.fitid).filter(Boolean));
+    const toReview = parsed.map(p => ({
+      ...p,
+      id: Date.now() + Math.random(),
+      category: suggestCategory(p.desc, p.type),
+      account: "Inter",
+      notes: "",
+      selected: !existingFitids.has(p.fitid),
+      duplicate: existingFitids.has(p.fitid),
+    }));
+    setImporting(toReview);
+    e.target.value = "";
+  };
+
+  const confirmImport = () => {
+    const selected = importing.filter(t => t.selected);
+    if (selected.length === 0) {
+      showToast("Nenhuma transação selecionada", "error");
+      return;
+    }
+    // Garantir que conta "Inter" exista
+    const hasInter = accounts.some(a => a.name === "Inter");
+    if (!hasInter) {
+      setAccounts(prev => [...prev, { id: Date.now(), name: "Inter", color: "#ff7a00", balance: 0 }]);
+    }
+    setTransactions(prev => [...prev, ...selected.map(t => ({
+      id: t.id,
+      type: t.type,
+      desc: t.desc,
+      value: t.value,
+      category: t.category,
+      date: t.date,
+      account: t.account,
+      notes: t.notes,
+      fitid: t.fitid,
+    }))]);
+    setAccounts(prev => prev.map(a => {
+      if (a.name !== "Inter") return a;
+      const delta = selected.reduce((s, t) => s + (t.type === "receita" ? t.value : -t.value), 0);
+      return { ...a, balance: a.balance + delta };
+    }));
+    setImporting(null);
+    showToast(`${selected.length} lançamentos importados! 📥`);
+  };
+
   const greet = () => { const h = new Date().getHours(); return h < 12 ? "Bom dia" : h < 18 ? "Boa tarde" : "Boa noite"; };
 
   // ── 6-month chart data ────────────────────────────────────────────────────
@@ -344,6 +402,9 @@ export default function App() {
                 </span>
               )}
             </div>
+            <label style={{ marginLeft: 6, padding: "9px 14px", background: "#fff", color: "#555", border: "1px solid #e5e9e2", borderRadius: 10, cursor: "pointer", fontWeight: 600, fontSize: 13, fontFamily: "'DM Sans',sans-serif", display: "inline-flex", alignItems: "center", gap: 5 }} title="Importar extrato OFX">
+              📥 <input type="file" accept=".ofx" onChange={handleFileImport} style={{ display:"none" }} />
+            </label>
             <button onClick={() => { setForm(emptyForm()); setEditingId(null); setModal("add"); }} style={{ marginLeft: 6, padding: "9px 18px", background: "#22c55e", color: "#fff", border: "none", borderRadius: 10, cursor: "pointer", fontWeight: 600, fontSize: 14, fontFamily: "'DM Sans',sans-serif" }}>
               + Lançamento
             </button>
@@ -494,6 +555,44 @@ export default function App() {
           </div>
           <button onClick={saveAccount} style={{ width: "100%", padding: 13, background: "#22c55e", color: "#fff", border: "none", borderRadius: 10, cursor: "pointer", fontWeight: 700, fontSize: 15, fontFamily: "'DM Sans',sans-serif", marginBottom: 8 }}>Adicionar Conta</button>
           <button onClick={() => setModal(null)} style={{ width: "100%", padding: 11, background: "transparent", border: "1px solid #e5e7eb", borderRadius: 10, cursor: "pointer", fontSize: 14, color: "#888", fontFamily: "'DM Sans',sans-serif" }}>Cancelar</button>
+        </Overlay>
+      )}
+
+      
+      {importing && (
+        <Overlay onClose={() => setImporting(null)}>
+          <h2 style={{ margin: "0 0 8px", fontSize: 19, fontWeight: 700 }}>📥 Revisar Importação</h2>
+          <p style={{ margin: "0 0 16px", fontSize: 13, color: "#888" }}>{importing.filter(t=>t.selected).length} de {importing.length} selecionadas. {importing.filter(t=>t.duplicate).length>0 && <span style={{ color:"#d97706" }}>· {importing.filter(t=>t.duplicate).length} duplicada(s) desmarcada(s)</span>}</p>
+          <div style={{ maxHeight: 400, overflowY: "auto", marginBottom: 16 }}>
+            {importing.map((t, idx) => {
+              const cfg = TYPE_CONFIG[t.type];
+              return (
+                <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 8px", borderBottom: "1px solid #f3f4f6", opacity: t.selected ? 1 : 0.5 }}>
+                  <input type="checkbox" checked={t.selected} onChange={(e) => setImporting(arr => arr.map((x, i) => i === idx ? { ...x, selected: e.target.checked } : x))} style={{ width: 18, height: 18, accentColor: "#22c55e", flexShrink: 0 }} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ margin: 0, fontSize: 13, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.desc}</p>
+                    <div style={{ display: "flex", gap: 6, marginTop: 4, alignItems: "center", flexWrap: "wrap" }}>
+                      <span style={{ fontSize: 11, color: "#888" }}>{new Date(t.date+"T12:00:00").toLocaleDateString("pt-BR")}</span>
+                      <select value={t.type} onChange={(e) => setImporting(arr => arr.map((x, i) => i === idx ? { ...x, type: e.target.value, category: suggestCategory(x.desc, e.target.value) } : x))} style={{ fontSize: 11, padding: "2px 4px", border: "1px solid #e5e7eb", borderRadius: 4 }}>
+                        <option value="despesa">Despesa</option>
+                        <option value="receita">Receita</option>
+                        <option value="investimento">Investimento</option>
+                      </select>
+                      <select value={t.category} onChange={(e) => setImporting(arr => arr.map((x, i) => i === idx ? { ...x, category: e.target.value } : x))} style={{ fontSize: 11, padding: "2px 4px", border: "1px solid #e5e7eb", borderRadius: 4 }}>
+                        {CATEGORIES[t.type]?.map(c => <option key={c}>{c}</option>)}
+                      </select>
+                      {t.duplicate && <span style={{ fontSize: 10, background: "#fef3c7", color: "#92400e", padding: "1px 6px", borderRadius: 4, fontWeight: 600 }}>duplicada</span>}
+                    </div>
+                  </div>
+                  <span style={{ fontWeight: 700, fontFamily: "'DM Mono',monospace", fontSize: 13, color: cfg.color, flexShrink: 0 }}>{t.type === "receita" ? "+" : "-"}{fmt(t.value)}</span>
+                </div>
+              );
+            })}
+          </div>
+          <button onClick={confirmImport} style={{ width: "100%", padding: 13, background: "#22c55e", color: "#fff", border: "none", borderRadius: 10, cursor: "pointer", fontWeight: 700, fontSize: 15, fontFamily: "'DM Sans',sans-serif", marginBottom: 8 }}>
+            Importar {importing.filter(t=>t.selected).length} lançamentos
+          </button>
+          <button onClick={() => setImporting(null)} style={{ width: "100%", padding: 11, background: "transparent", border: "1px solid #e5e7eb", borderRadius: 10, cursor: "pointer", fontSize: 14, color: "#888", fontFamily: "'DM Sans',sans-serif" }}>Cancelar</button>
         </Overlay>
       )}
 
