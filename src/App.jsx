@@ -55,6 +55,7 @@ export default function App() {
   const [transactions, setTransactions] = useFirestoreData(user?.uid, "transactions", []);
   const [accounts, setAccounts]         = useFirestoreData(user?.uid, "accounts", []);
   const [recurrings, setRecurrings]     = useFirestoreData(user?.uid, "recurrings", []);
+  const [deletedRecurrings, setDeletedRecurrings] = useFirestoreData(user?.uid, "deletedRecurrings", []);
   const [page, setPage]                 = useState("dashboard");
   const [month, setMonth]               = useState(TODAY.getMonth());
   const [year]                          = useState(TODAY.getFullYear());
@@ -106,10 +107,12 @@ export default function App() {
           return d.getMonth() === month && d.getFullYear() === year;
         });
         if (alreadyExists) return prev;
+        const wasDeleted = deletedRecurrings.some((dr) => dr.recurringId === r.id && dr.month === ym);
+        if (wasDeleted) return prev;
         return [...prev, { ...r, id: Date.now() + Math.random(), recurringId: r.id, date: dateForMonth, recurringMonth: ym }];
       });
     });
-  }, [month, recurrings]);
+  }, [month, recurrings, deletedRecurrings]);
 
   const monthTx = transactions.filter((t) => {
     const d = new Date(t.date + "T12:00:00");
@@ -189,6 +192,10 @@ export default function App() {
       setAccounts((prev) => prev.map((a) => a.name === t.account
         ? { ...a, balance: t.type === "receita" ? a.balance - t.value : a.balance + t.value }
         : a));
+    }
+    if (t?.recurringId) {
+      const ym = t.recurringMonth || `${year}-${String(month + 1).padStart(2, "0")}`;
+      setDeletedRecurrings((prev) => [...prev, { recurringId: t.recurringId, month: ym }]);
     }
     setTransactions((prev) => prev.filter((x) => x.id !== id));
     showToast("Lançamento removido");
