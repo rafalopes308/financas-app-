@@ -374,8 +374,13 @@ export default function App() {
             </button>
           ))}
         </nav>
-        <div style={{ padding: "12px 20px", borderTop: "1px solid #e5e9e2", fontSize: 11, color: "#bbb", textAlign: "center" }}>
-          {new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" })}
+        <div style={{ padding: "12px 20px", borderTop: "1px solid #e5e9e2" }}>
+          <p style={{ margin: "0 0 8px", fontSize: 11, color: "#bbb", textAlign: "center" }}>
+            {new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" })}
+          </p>
+          <button onClick={logout} style={{ width: "100%", padding: "8px", background: "transparent", border: "1px solid #e5e7eb", borderRadius: 8, cursor: "pointer", fontSize: 12, color: "#888", fontFamily: "'DM Sans',sans-serif" }}>
+            🚪 Sair
+          </button>
         </div>
       </aside>
 
@@ -431,6 +436,9 @@ export default function App() {
               <span style={{ fontSize:18 }}>{item.icon}</span>{item.label}
             </button>
           ))}
+          <button onClick={logout} style={{ flex:1,padding:"10px 4px",background:"transparent",border:"none",borderTop:"3px solid transparent",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:2,color:"#888",fontSize:10,fontFamily:"'DM Sans',sans-serif" }}>
+            <span style={{ fontSize:18 }}>🚪</span>Sair
+          </button>
         </nav>
       )}
 
