@@ -35,6 +35,20 @@ export function parseOFX(text) {
   return transactions;
 }
 
+// Normaliza a descrição para servir de chave da memória de categorias
+// (remove acentos, números de parcela/data e pontuação, pra "IFOOD *IFOOD 12/07"
+// e "IFOOD *IFOOD 03/08" caírem na mesma chave)
+export function normalizeDesc(desc) {
+  return String(desc || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\d+/g, "")
+    .replace(/[^a-z ]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 // Sugere categoria baseado em palavras-chave
 export function suggestCategory(desc, type) {
   const d = desc.toLowerCase();

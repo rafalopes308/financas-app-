@@ -3,7 +3,7 @@ import Login from "./Login";
 import { useState, useEffect, useRef } from "react";
 import { useFirestoreData } from "./useFirestore";
 import { getNthBusinessDay } from "./businessDays";
-import { parseOFX, suggestCategory } from "./ofxParser";
+import { parseOFX, suggestCategory, normalizeDesc } from "./ofxParser";
 
 // ─── helpers ───────────────────────────────────────────────────────────────
 const fmt = (v) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v ?? 0);
@@ -57,6 +57,7 @@ export default function App() {
   const [accounts, setAccounts]         = useFirestoreData(user?.uid, "accounts", []);
   const [recurrings, setRecurrings]     = useFirestoreData(user?.uid, "recurrings", []);
   const [deletedRecurrings, setDeletedRecurrings] = useFirestoreData(user?.uid, "deletedRecurrings", []);
+  const [categoryMap, setCategoryMap]   = useFirestoreData(user?.uid, "categoryMap", {});
   const [page, setPage]                 = useState("dashboard");
   const [month, setMonth]               = useState(TODAY.getMonth());
   const [year]                          = useState(TODAY.getFullYear());
@@ -144,6 +145,11 @@ export default function App() {
       setModal(null);
       setEditingId(null);
       return;
+    }
+
+    {
+      const k = normalizeDesc(form.desc);
+      if (k && form.category) setCategoryMap(prev => ({ ...prev, [k]: form.category }));
     }
 
     if (editingId) {
@@ -253,7 +259,7 @@ export default function App() {
     const toReview = parsed.map(p => ({
       ...p,
       id: Date.now() + Math.random(),
-      category: suggestCategory(p.desc, p.type),
+      category: categoryMap[normalizeDesc(p.desc)] || suggestCategory(p.desc, p.type),
       account: "Inter",
       notes: "",
       selected: !existingFitids.has(p.fitid),
@@ -290,6 +296,15 @@ export default function App() {
       const delta = selected.reduce((s, t) => s + (t.type === "receita" ? t.value : -t.value), 0);
       return { ...a, balance: a.balance + delta };
     }));
+    // memoriza a categoria escolhida pra cada estabelecimento
+    setCategoryMap(prev => {
+      const next = { ...prev };
+      selected.forEach(t => {
+        const k = normalizeDesc(t.desc);
+        if (k && t.category) next[k] = t.category;
+      });
+      return next;
+    });
     setImporting(null);
     showToast(`${selected.length} lançamentos importados! 📥`);
   };
