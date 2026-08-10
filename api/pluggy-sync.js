@@ -39,19 +39,20 @@ async function pluggyFetch(path, apiKey, options = {}) {
   return res.json();
 }
 
+// /v2/transactions pagina por cursor: `next` vem como URL completa (ou null no fim),
+// e o cursor é o parâmetro `after` dela.
 async function fetchAllTransactions(apiKey, accountId, fromDate) {
   const all = [];
-  let page = 1;
-  let totalPages = 1;
-  do {
-    const data = await pluggyFetch(
-      `/transactions?accountId=${accountId}&from=${fromDate}&pageSize=500&page=${page}`,
-      apiKey
-    );
+  let after = null;
+  for (let guard = 0; guard < 50; guard++) {
+    const query = `accountId=${accountId}&from=${fromDate}&pageSize=500` +
+      (after ? `&after=${encodeURIComponent(after)}` : "");
+    const data = await pluggyFetch(`/v2/transactions?${query}`, apiKey);
     all.push(...(data.results || []));
-    totalPages = data.totalPages || 1;
-    page++;
-  } while (page <= totalPages);
+    if (!data.next) break;
+    after = new URL(data.next, PLUGGY_API).searchParams.get("after");
+    if (!after) break;
+  }
   return all;
 }
 
