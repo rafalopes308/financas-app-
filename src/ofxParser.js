@@ -58,11 +58,14 @@ export function suggestCategory(desc, type) {
     return "Outros";
   }
   // despesa
-  if (d.match(/ifood|rappi|uber eats|restaurante|lanchonete|padaria|supermercado|mercado|hortifrut/)) return "Alimentação";
-  if (d.match(/uber|99|taxi|gasolina|posto|estacionamento|metro|onibus|combust/)) return "Transporte";
+  // "ifd " e "dl " são prefixos que o Inter usa na fatura pra iFood e delivery
+  if (d.match(/ifood|^ifd |rappi|uber eats|restaurante|lanchonete|padaria|supermercado|mercado|hortifrut|hamburg|pizza|acai|açaí|oakberry|bar /)) return "Alimentação";
+  if (d.match(/uberrides|uber|99|taxi|gasolina|posto|estacionamento|metro|onibus|combust/)) return "Transporte";
   if (d.match(/aluguel|condominio|luz|agua|gas|internet|net |vivo |tim |claro/)) return "Moradia";
-  if (d.match(/farmacia|drogari|hospital|consulta|medico|dentista|psico/)) return "Saúde";
-  if (d.match(/cinema|netflix|spotify|prime|disney|hbo|youtube|steam|playstat|xbox/)) return "Lazer";
+  if (d.match(/farmacia|drogari|hospital|consulta|medico|dentista|psico|wellhub|gympass/)) return "Saúde";
+  if (d.match(/anthropic|claude|openai|chatgpt|notion|figma|github|adobe|canva/)) return "Ferramentas";
+  if (d.match(/netflix|spotify|prime|disney|hbo|globoplay|youtube|apple\.com|icloud|itunes/)) return "Assinaturas";
+  if (d.match(/cinema|steam|playstat|xbox/)) return "Lazer";
   if (d.match(/escola|faculdade|curso|udemy|alura/)) return "Educação";
   if (d.match(/zara|renner|riachuelo|c&a|nike|adidas/)) return "Roupas";
   if (d.match(/academia|smartfit|crossfit/)) return "Esporte";

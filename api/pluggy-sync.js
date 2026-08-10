@@ -93,13 +93,16 @@ export default async function handler(req, res) {
         const txs = await fetchAllTransactions(apiKey, account.id, fromDate);
         for (const tx of txs) {
           const expense = isCredit ? tx.amount > 0 : tx.amount < 0;
-          // no cartão, ignora estornos/pagamento de fatura pra não duplicar
-          // com o débito que já aparece na conta corrente
+          // no cartão, ignora estornos e o crédito do pagamento da fatura
           if (isCredit && !expense) continue;
+          const desc = String(tx.description || "Sem descrição").replace(/\s+/g, " ").trim();
+          // o pagamento da fatura sai da conta corrente, mas as compras do cartão
+          // já entram uma a uma — contar os dois dobraria a despesa do mês
+          if (!isCredit && /pagamento.*fatura|fatura.*cart/i.test(desc)) continue;
           incoming.push({
             fitid: `pluggy-${tx.id}`,
             date: String(tx.date).slice(0, 10),
-            desc: String(tx.description || "Sem descrição").replace(/\s+/g, " ").trim(),
+            desc,
             value: Math.abs(tx.amount),
             type: expense ? "despesa" : "receita",
           });
