@@ -9,18 +9,19 @@
 //   SYNC_UID — uid do usuário do app que recebe os lançamentos
 //   CRON_SECRET — string aleatória; a Vercel envia automaticamente no header do cron
 
-import admin from "firebase-admin";
+import { cert, getApps, initializeApp } from "firebase-admin/app";
+import { getFirestore } from "firebase-admin/firestore";
 import { suggestCategory, normalizeDesc } from "../src/ofxParser.js";
 
 const PLUGGY_API = "https://api.pluggy.ai";
 const SYNC_WINDOW_DAYS = 45;
 
 function getDb() {
-  if (!admin.apps.length) {
+  if (!getApps().length) {
     const sa = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
-    admin.initializeApp({ credential: admin.credential.cert(sa) });
+    initializeApp({ credential: cert(sa) });
   }
-  return admin.firestore();
+  return getFirestore();
 }
 
 async function pluggyFetch(path, apiKey, options = {}) {
