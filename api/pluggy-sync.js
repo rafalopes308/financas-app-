@@ -45,7 +45,7 @@ async function fetchAllTransactions(apiKey, accountId, fromDate) {
   const all = [];
   let after = null;
   for (let guard = 0; guard < 50; guard++) {
-    const query = `accountId=${accountId}&from=${fromDate}&pageSize=500` +
+    const query = `accountId=${accountId}&dateFrom=${fromDate}` +
       (after ? `&after=${encodeURIComponent(after)}` : "");
     const data = await pluggyFetch(`/v2/transactions?${query}`, apiKey);
     all.push(...(data.results || []));
