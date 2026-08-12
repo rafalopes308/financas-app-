@@ -365,10 +365,45 @@ export default function App() {
   const maxCat = Math.max(...Object.values(gastosPorCat), 1);
   const topGastos = [...monthTx.filter((t) => t.type === "despesa")].sort((a, b) => b.value - a.value).slice(0, 5);
 
+  // ── categorizar pendentes ──────────────────────────────────────────────────
+  // Agrupa os "Outros" por estabelecimento: decidir uma vez resolve o mês inteiro
+  // e, via categoryMap, todos os meses seguintes.
+  const pendentes = (() => {
+    const grupos = {};
+    for (const t of monthTx) {
+      if (t.category && t.category !== "Outros") continue;
+      const chave = normalizeDesc(t.desc);
+      if (!chave) continue;
+      if (!grupos[chave]) grupos[chave] = { chave, desc: t.desc, type: t.type, qtd: 0, total: 0 };
+      grupos[chave].qtd += 1;
+      grupos[chave].total += t.value;
+    }
+    return Object.values(grupos).sort((a, b) => b.total - a.total);
+  })();
+
+  const aplicarCategoria = (chave, categoria) => {
+    setTransactions((prev) => prev.map((t) => normalizeDesc(t.desc) === chave ? { ...t, category: categoria } : t));
+    setCategoryMap((prev) => ({ ...prev, [chave]: categoria }));
+  };
+
   const todayStr = TODAY.toISOString().split("T")[0];
   const currentYM = `${year}-${String(month + 1).padStart(2, "0")}`;
+
+  // Um lembrete some quando o pagamento aparece no extrato: mesmo valor e alguma
+  // palavra em comum na descrição ("Aula de Tênis" ↔ "Pix enviado - Quadra De Tenis Bh").
+  const palavras = (s) => new Set(normalizeDesc(s).split(" ").filter((p) => p.length >= 4));
+  const jaPagoNoExtrato = (lembrete) => {
+    const alvo = palavras(lembrete.desc);
+    return monthTx.some((t) =>
+      t.id !== lembrete.id &&
+      t.type === "despesa" &&
+      Math.abs(t.value - lembrete.value) < 0.01 &&
+      [...palavras(t.desc)].some((p) => alvo.has(p))
+    );
+  };
+
   const lembretes = transactions
-    .filter((t) => t.reminderDay && t.reminderPaidMonth !== currentYM)
+    .filter((t) => t.reminderDay && t.reminderPaidMonth !== currentYM && !jaPagoNoExtrato(t))
     .map((t) => {
       const reminderDate = `${year}-${String(month + 1).padStart(2, "0")}-${String(t.reminderDay).padStart(2, "0")}`;
       const diff = Math.ceil((new Date(reminderDate + "T12:00:00") - new Date(todayStr + "T12:00:00")) / 86400000);
@@ -464,6 +499,20 @@ export default function App() {
               O banco não manda lançamento novo há <b>{syncAtrasado} dias</b>. Costuma ser a conexão do Open Finance
               pedindo reconexão — confira em <b>meu.pluggy.ai</b>. (Compras no crédito levam de 1 a 3 dias para aparecer, isso é normal.)
             </span>
+          </div>
+        )}
+
+        {pendentes.length > 0 && (
+          <div style={{ marginBottom: 20, padding: "12px 16px", background: "#eff6ff", border: "1px solid #93c5fd", borderRadius: 10, fontSize: 13, color: "#1e40af", display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+            <span>🏷️</span>
+            <span style={{ flex: 1, minWidth: 220 }}>
+              <b>{pendentes.length} estabelecimentos</b> sem categoria em {MONTHS[month]} ({fmt(pendentes.reduce((s, p) => s + p.total, 0))}).
+              Categorize uma vez e o app lembra pra sempre.
+            </span>
+            <button onClick={() => setModal("categorizar")}
+              style={{ padding: "7px 14px", background: "#2563eb", color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", fontWeight: 600, fontSize: 13, fontFamily: "'DM Sans',sans-serif" }}>
+              Categorizar
+            </button>
           </div>
         )}
 
@@ -633,7 +682,39 @@ export default function App() {
         </Overlay>
       )}
 
-      
+      {/* Modal Categorizar pendentes */}
+      {modal === "categorizar" && (
+        <Overlay onClose={() => setModal(null)}>
+          <h2 style={{ margin: "0 0 8px", fontSize: 19, fontWeight: 700 }}>🏷️ Categorizar</h2>
+          <p style={{ margin: "0 0 16px", fontSize: 13, color: "#888" }}>
+            Um estabelecimento por linha, do que mais pesa para o que menos pesa. A escolha vale para todos os
+            lançamentos dele — inclusive os que ainda vão chegar.
+          </p>
+          {pendentes.length === 0 ? (
+            <p style={{ textAlign: "center", padding: "24px 0", color: "#16a34a", fontWeight: 600 }}>Tudo categorizado! 🎉</p>
+          ) : (
+            <div style={{ maxHeight: 420, overflowY: "auto", marginBottom: 16 }}>
+              {pendentes.map((p) => (
+                <div key={p.chave} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 4px", borderBottom: "1px solid #f3f4f6" }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ margin: 0, fontSize: 13, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.desc}</p>
+                    <p style={{ margin: 0, fontSize: 11, color: "#999" }}>
+                      {p.qtd > 1 ? `${p.qtd} lançamentos · ` : ""}{fmt(p.total)}
+                    </p>
+                  </div>
+                  <select defaultValue="" onChange={(e) => e.target.value && aplicarCategoria(p.chave, e.target.value)}
+                    style={{ padding: "7px 8px", border: "1px solid #e5e7eb", borderRadius: 8, fontSize: 13, fontFamily: "'DM Sans',sans-serif", flexShrink: 0 }}>
+                    <option value="">Escolher…</option>
+                    {CATEGORIES[p.type]?.map((c) => <option key={c}>{c}</option>)}
+                  </select>
+                </div>
+              ))}
+            </div>
+          )}
+          <button onClick={() => setModal(null)} style={{ width: "100%", padding: 12, background: "#22c55e", color: "#fff", border: "none", borderRadius: 10, cursor: "pointer", fontWeight: 700, fontSize: 15, fontFamily: "'DM Sans',sans-serif" }}>Fechar</button>
+        </Overlay>
+      )}
+
       {importing && (
         <Overlay onClose={() => setImporting(null)}>
           <h2 style={{ margin: "0 0 8px", fontSize: 19, fontWeight: 700 }}>📥 Revisar Importação</h2>
