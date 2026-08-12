@@ -130,6 +130,16 @@ export default function App() {
   const saldoMensal      = totalReceita - totalDespesa;
   const masked           = (v) => hideValues ? "R$ ••••••" : fmt(v);
 
+  // Dias desde o último lançamento vindo do banco. Serve de alarme: se a conexão
+  // do Open Finance cai, o app continua parecendo normal, só que mudo.
+  const syncAtrasado = (() => {
+    const doBanco = transactions.filter((t) => String(t.fitid || "").startsWith("pluggy-"));
+    if (doBanco.length === 0) return null;
+    const ultima = doBanco.reduce((max, t) => (t.date > max ? t.date : max), "");
+    const dias = Math.floor((TODAY - new Date(ultima + "T12:00:00")) / 86400000);
+    return dias > 3 ? dias : null;
+  })();
+
   // ── save transaction ──────────────────────────────────────────────────────
   const saveTransaction = () => {
     if (!form.desc || !form.value || !form.category || !form.date) return showToast("Preencha todos os campos!", "error");
@@ -430,6 +440,16 @@ export default function App() {
             </button>
           </div>
         </header>
+
+        {syncAtrasado !== null && (
+          <div style={{ marginBottom: 20, padding: "12px 16px", background: "#fff7ed", border: "1px solid #fdba74", borderRadius: 10, fontSize: 13, color: "#9a3412", display: "flex", gap: 8, alignItems: "flex-start" }}>
+            <span>⚠️</span>
+            <span>
+              O banco não manda lançamento novo há <b>{syncAtrasado} dias</b>. Costuma ser a conexão do Open Finance
+              pedindo reconexão — confira em <b>meu.pluggy.ai</b>. (Compras no crédito levam de 1 a 3 dias para aparecer, isso é normal.)
+            </span>
+          </div>
+        )}
 
         {page === "dashboard"   && <Dashboard totalReceita={totalReceita} totalDespesa={totalDespesa} totalInvestimento={totalInvestimento} saldoGeral={saldoGeral} saldoMensal={saldoMensal} accounts={accounts} topGastos={topGastos} gastosPorCat={gastosPorCat} maxCat={maxCat} masked={masked} setModal={setModal} setForm={setForm} emptyForm={emptyForm} comparativo={comparativo} chartData={chartData} monthTx={monthTx} month={month} MONTHS={MONTHS} lembretes={lembretes} dismissReminder={dismissReminder} />}
         {page === "lancamentos" && <Lancamentos monthTx={monthTx} masked={masked} deleteTx={deleteTx} openEdit={openEdit} />}
