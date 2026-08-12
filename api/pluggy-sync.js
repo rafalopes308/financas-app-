@@ -16,6 +16,9 @@ import { suggestCategory, normalizeDesc } from "../src/ofxParser.js";
 const PLUGGY_API = "https://api.pluggy.ai";
 const SYNC_WINDOW_DAYS = 45;
 
+// esperar o refresh do item leva dezenas de segundos
+export const config = { maxDuration: 60 };
+
 function getDb() {
   if (!getApps().length) {
     const sa = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
@@ -38,6 +41,25 @@ async function pluggyFetch(path, apiKey, options = {}) {
     throw new Error(`Pluggy ${path} → ${res.status}: ${body.slice(0, 300)}`);
   }
   return res.json();
+}
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// Sem isso a Pluggy devolve o último snapshot, que pode ter dias de atraso.
+// PATCH /items/{id} manda buscar dados novos no banco; o item fica em UPDATING
+// até terminar, então esperamos (com teto de ~50s pra não estourar a função).
+async function refreshItem(apiKey, itemId) {
+  try {
+    await pluggyFetch(`/items/${itemId}`, apiKey, { method: "PATCH", body: "{}" });
+  } catch (err) {
+    return `PATCH_FAILED: ${err.message}`;
+  }
+  for (let i = 0; i < 20; i++) {
+    await sleep(2500);
+    const item = await pluggyFetch(`/items/${itemId}`, apiKey);
+    if (item.status !== "UPDATING") return item.status;
+  }
+  return "TIMEOUT";
 }
 
 // /v2/transactions pagina por cursor: `next` vem como URL completa (ou null no fim),
@@ -85,7 +107,9 @@ export default async function handler(req, res) {
     const itemIds = process.env.PLUGGY_ITEM_IDS.split(",").map((s) => s.trim()).filter(Boolean);
     const incoming = [];
     let bankBalance = null;
+    const refreshStatus = {};
     for (const itemId of itemIds) {
+      refreshStatus[itemId] = await refreshItem(apiKey, itemId);
       const { results: accounts = [] } = await pluggyFetch(`/accounts?itemId=${itemId}`, apiKey);
       for (const account of accounts) {
         const isCredit = String(account.type || "").toUpperCase().includes("CREDIT");
@@ -159,6 +183,7 @@ export default async function handler(req, res) {
       fetched: incoming.length,
       imported: newTxs.length,
       bankBalance,
+      refreshStatus,
     });
   } catch (err) {
     console.error("pluggy-sync error:", err);
