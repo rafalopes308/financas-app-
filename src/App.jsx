@@ -58,6 +58,9 @@ export default function App() {
   const [recurrings, setRecurrings]     = useFirestoreData(user?.uid, "recurrings", []);
   const [deletedRecurrings, setDeletedRecurrings] = useFirestoreData(user?.uid, "deletedRecurrings", []);
   const [categoryMap, setCategoryMap]   = useFirestoreData(user?.uid, "categoryMap", {});
+  // carteira do banco (escrita pelo sync) e o que é cadastrado à mão (corretora de fora)
+  const [investBank]                    = useFirestoreData(user?.uid, "investmentsBank", { total: 0, items: [] });
+  const [investCfg, setInvestCfg]       = useFirestoreData(user?.uid, "investmentsConfig", { meta: 2500, dia: 9, manuais: [] });
   const [page, setPage]                 = useState("dashboard");
   const [month, setMonth]               = useState(TODAY.getMonth());
   const [year]                          = useState(TODAY.getFullYear());
@@ -129,6 +132,18 @@ export default function App() {
   const saldoGeral       = accounts.reduce((s, a) => s + a.balance, 0);
   const saldoMensal      = totalReceita - totalDespesa;
   const masked           = (v) => hideValues ? "R$ ••••••" : fmt(v);
+
+  // ── carteira e meta de aporte ──────────────────────────────────────────────
+  const manuais            = investCfg.manuais || [];
+  const totalManuais       = manuais.reduce((s, i) => s + Number(i.value || 0), 0);
+  const totalInvestido     = Number(investBank.total || 0) + totalManuais;
+  const patrimonio         = saldoGeral + totalInvestido;
+  const metaAporte         = Number(investCfg.meta || 0);
+  const diaAporte          = Number(investCfg.dia || 9);
+  const faltaAportar       = Math.max(0, metaAporte - totalInvestimento);
+  // só cobra o aporte no mês corrente, e a partir do dia escolhido
+  const cobrarAporte       = month === TODAY.getMonth() && year === TODAY.getFullYear()
+    && TODAY.getDate() >= diaAporte && faltaAportar > 0 && metaAporte > 0;
 
   // Dias desde o último lançamento vindo do banco. Serve de alarme: se a conexão
   // do Open Finance cai, o app continua parecendo normal, só que mudo.
@@ -385,6 +400,7 @@ export default function App() {
             { id: "dashboard",    icon: "🏠", label: "Dashboard"    },
             { id: "lancamentos",  icon: "📋", label: "Lançamentos"  },
             { id: "recorrentes",  icon: "🔁", label: "Recorrentes"  },
+            { id: "investimentos", icon: "📈", label: "Investimentos" },
             { id: "contas",       icon: "🏦", label: "Contas"       },
             { id: "relatorios",   icon: "📊", label: "Relatórios"   },
           ].map((item) => (
@@ -416,7 +432,7 @@ export default function App() {
           <div>
             <p style={{ margin: 0, fontSize: 13, color: "#888" }}>{greet()}</p>
             <h1 style={{ margin: "2px 0 0", fontSize: 26, fontWeight: 700, letterSpacing: -0.5 }}>
-              {{ dashboard: "Visão Geral", lancamentos: "Lançamentos", recorrentes: "Recorrentes", contas: "Contas", relatorios: "Relatórios" }[page]}
+              {{ dashboard: "Visão Geral", lancamentos: "Lançamentos", recorrentes: "Recorrentes", investimentos: "Investimentos", contas: "Contas", relatorios: "Relatórios" }[page]}
             </h1>
           </div>
           <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
@@ -451,7 +467,22 @@ export default function App() {
           </div>
         )}
 
-        {page === "dashboard"   && <Dashboard totalReceita={totalReceita} totalDespesa={totalDespesa} totalInvestimento={totalInvestimento} saldoGeral={saldoGeral} saldoMensal={saldoMensal} accounts={accounts} topGastos={topGastos} gastosPorCat={gastosPorCat} maxCat={maxCat} masked={masked} setModal={setModal} setForm={setForm} emptyForm={emptyForm} comparativo={comparativo} chartData={chartData} monthTx={monthTx} month={month} MONTHS={MONTHS} lembretes={lembretes} dismissReminder={dismissReminder} />}
+        {cobrarAporte && (
+          <div style={{ marginBottom: 20, padding: "12px 16px", background: "#f5f3ff", border: "1px solid #c4b5fd", borderRadius: 10, fontSize: 13, color: "#5b21b6", display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+            <span>📈</span>
+            <span style={{ flex: 1, minWidth: 220 }}>
+              Aporte de {MONTHS[month]}: faltam <b>{fmt(faltaAportar)}</b> para a meta de {fmt(metaAporte)}.
+            </span>
+            <button
+              onClick={() => { setForm({ ...emptyForm(), type: "investimento", value: String(faltaAportar.toFixed(2)) }); setModal("add"); }}
+              style={{ padding: "7px 14px", background: "#7c3aed", color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", fontWeight: 600, fontSize: 13, fontFamily: "'DM Sans',sans-serif" }}>
+              Registrar aporte
+            </button>
+          </div>
+        )}
+
+        {page === "dashboard"   && <Dashboard totalReceita={totalReceita} totalDespesa={totalDespesa} totalInvestimento={totalInvestimento} saldoGeral={saldoGeral} saldoMensal={saldoMensal} accounts={accounts} topGastos={topGastos} gastosPorCat={gastosPorCat} maxCat={maxCat} masked={masked} setModal={setModal} setForm={setForm} emptyForm={emptyForm} comparativo={comparativo} chartData={chartData} monthTx={monthTx} month={month} MONTHS={MONTHS} lembretes={lembretes} dismissReminder={dismissReminder} patrimonio={patrimonio} totalInvestido={totalInvestido} />}
+        {page === "investimentos" && <Investimentos investBank={investBank} investCfg={investCfg} setInvestCfg={setInvestCfg} manuais={manuais} totalManuais={totalManuais} totalInvestido={totalInvestido} totalInvestimento={totalInvestimento} metaAporte={metaAporte} diaAporte={diaAporte} masked={masked} chartData={chartData} MONTHS={MONTHS} month={month} setForm={setForm} setModal={setModal} emptyForm={emptyForm} showToast={showToast} />}
         {page === "lancamentos" && <Lancamentos monthTx={monthTx} masked={masked} deleteTx={deleteTx} openEdit={openEdit} />}
         {page === "recorrentes" && <Recorrentes recurrings={recurrings} deleteRecurring={deleteRecurring} openEditRecurring={openEditRecurring} masked={masked} />}
         {page === "contas"      && <Contas accounts={accounts} setAccounts={setAccounts} masked={masked} setModal={setModal} />}
@@ -464,6 +495,7 @@ export default function App() {
             { id:"dashboard", icon:"🏠", label:"Início" },
             { id:"lancamentos", icon:"📋", label:"Lanç." },
             { id:"recorrentes", icon:"🔁", label:"Recor." },
+            { id:"investimentos", icon:"📈", label:"Invest." },
             { id:"contas", icon:"🏦", label:"Contas" },
             { id:"relatorios", icon:"📊", label:"Relat." },
           ].map((item) => (
@@ -791,14 +823,31 @@ function BarChart({ data }) {
 }
 
 // ─── pages ─────────────────────────────────────────────────────────────────
-function Dashboard({ totalReceita, totalDespesa, totalInvestimento, saldoGeral, saldoMensal, accounts, topGastos, gastosPorCat, maxCat, masked, setModal, setForm, emptyForm, comparativo, chartData, monthTx, month, MONTHS, lembretes, dismissReminder }) {
+function Dashboard({ totalReceita, totalDespesa, totalInvestimento, saldoGeral, saldoMensal, accounts, topGastos, gastosPorCat, maxCat, masked, setModal, setForm, emptyForm, comparativo, chartData, monthTx, month, MONTHS, lembretes, dismissReminder, patrimonio, totalInvestido }) {
+  const isMob = typeof window!=="undefined" && window.innerWidth<768;
   return (
     <div style={{ animation:"fadeUp .4s ease",display:"flex",flexDirection:"column",gap:20 }}>
-      <div style={{ display:"grid",gridTemplateColumns:(typeof window!=="undefined"&&window.innerWidth<768)?"repeat(2,1fr)":"repeat(4,1fr)",gap:(typeof window!=="undefined"&&window.innerWidth<768)?10:16 }}>
-        <SCard title="Receitas" value={masked(totalReceita)} color="#16a34a" bg="#f0fdf4" />
-        <SCard title="Despesas" value={masked(totalDespesa)} color="#dc2626" bg="#fef2f2" />
-        <SCard title="Investimentos" value={masked(totalInvestimento)} color="#7c3aed" bg="#f5f3ff" />
-        <SCard title="Saldo do mês" value={masked(saldoMensal)} color={saldoMensal>=0?"#15803d":"#dc2626"} bg="#fff" />
+      {/* o que você TEM hoje — não se confunde com o resultado do mês logo abaixo */}
+      <Card style={{ background:"linear-gradient(135deg,#0f766e,#15803d)",color:"#fff",border:"none" }}>
+        <p style={{ margin:0,fontSize:12,letterSpacing:.6,textTransform:"uppercase",opacity:.85 }}>Patrimônio hoje</p>
+        <p style={{ margin:"4px 0 14px",fontSize:isMob?30:36,fontWeight:700,letterSpacing:-1 }}>{masked(patrimonio)}</p>
+        <div style={{ display:"flex",gap:isMob?16:32,flexWrap:"wrap" }}>
+          <div>
+            <p style={{ margin:0,fontSize:12,opacity:.85 }}>Em conta</p>
+            <p style={{ margin:0,fontSize:17,fontWeight:600 }}>{masked(saldoGeral)}</p>
+          </div>
+          <div>
+            <p style={{ margin:0,fontSize:12,opacity:.85 }}>Investido</p>
+            <p style={{ margin:0,fontSize:17,fontWeight:600 }}>{masked(totalInvestido)}</p>
+          </div>
+        </div>
+      </Card>
+
+      <div style={{ display:"grid",gridTemplateColumns:isMob?"repeat(2,1fr)":"repeat(4,1fr)",gap:isMob?10:16 }}>
+        <SCard title="Receitas do mês" value={masked(totalReceita)} color="#16a34a" bg="#f0fdf4" />
+        <SCard title="Despesas do mês" value={masked(totalDespesa)} color="#dc2626" bg="#fef2f2" />
+        <SCard title="Aporte do mês" value={masked(totalInvestimento)} color="#7c3aed" bg="#f5f3ff" />
+        <SCard title="Sobrou no mês" value={masked(saldoMensal)} color={saldoMensal>=0?"#15803d":"#dc2626"} bg="#fff" />
       </div>
 
       {/* quick actions */}
@@ -964,6 +1013,137 @@ function Recorrentes({ recurrings, deleteRecurring, openEditRecurring, masked })
             );
           })
         }
+      </Card>
+    </div>
+  );
+}
+
+function Investimentos({ investBank, investCfg, setInvestCfg, manuais, totalManuais, totalInvestido, totalInvestimento, metaAporte, diaAporte, masked, chartData, MONTHS, month, setForm, setModal, emptyForm, showToast }) {
+  const isMob = typeof window !== "undefined" && window.innerWidth < 768;
+  const [nome, setNome]   = useState("");
+  const [valor, setValor] = useState("");
+  const itensBanco = investBank.items || [];
+  const pct = metaAporte > 0 ? Math.min(100, (totalInvestimento / metaAporte) * 100) : 0;
+  const inputStyle = { padding:"10px 12px",border:"1px solid #e5e7eb",borderRadius:8,fontSize:14,fontFamily:"'DM Sans',sans-serif",width:"100%",boxSizing:"border-box" };
+
+  // mesmo nome = atualiza o valor, em vez de duplicar a linha
+  const salvarManual = () => {
+    const v = parseFloat(String(valor).replace(",", "."));
+    if (!nome.trim() || isNaN(v) || v <= 0) return showToast("Preencha nome e valor", "error");
+    const chave = nome.trim().toLowerCase();
+    const existe = manuais.some((m) => m.name.trim().toLowerCase() === chave);
+    setInvestCfg({
+      ...investCfg,
+      manuais: existe
+        ? manuais.map((m) => m.name.trim().toLowerCase() === chave ? { ...m, value: v } : m)
+        : [...manuais, { id: Date.now(), name: nome.trim(), value: v }],
+    });
+    setNome(""); setValor("");
+    showToast(existe ? "Valor atualizado! 📈" : "Investimento cadastrado! 📈");
+  };
+
+  return (
+    <div style={{ animation:"fadeUp .4s ease",display:"flex",flexDirection:"column",gap:20 }}>
+      <Card style={{ background:"linear-gradient(135deg,#5b21b6,#7c3aed)",color:"#fff",border:"none" }}>
+        <p style={{ margin:0,fontSize:12,letterSpacing:.6,textTransform:"uppercase",opacity:.85 }}>Total investido</p>
+        <p style={{ margin:"4px 0 14px",fontSize:isMob?30:36,fontWeight:700,letterSpacing:-1 }}>{masked(totalInvestido)}</p>
+        <div style={{ display:"flex",gap:isMob?16:32,flexWrap:"wrap" }}>
+          <div>
+            <p style={{ margin:0,fontSize:12,opacity:.85 }}>No Inter (automático)</p>
+            <p style={{ margin:0,fontSize:17,fontWeight:600 }}>{masked(Number(investBank.total || 0))}</p>
+          </div>
+          <div>
+            <p style={{ margin:0,fontSize:12,opacity:.85 }}>Cadastrado por você</p>
+            <p style={{ margin:0,fontSize:17,fontWeight:600 }}>{masked(totalManuais)}</p>
+          </div>
+        </div>
+      </Card>
+
+      {/* meta do mês */}
+      <Card>
+        <SectionTitle color="#7c3aed">Meta de {MONTHS[month]}</SectionTitle>
+        <div style={{ display:"flex",justifyContent:"space-between",fontSize:14,marginBottom:8 }}>
+          <span style={{ fontWeight:600 }}>{masked(totalInvestimento)}</span>
+          <span style={{ color:"#888" }}>de {masked(metaAporte)}</span>
+        </div>
+        <div style={{ height:10,background:"#f3f4f6",borderRadius:99,overflow:"hidden" }}>
+          <div style={{ width:`${pct}%`,height:"100%",background:pct>=100?"#16a34a":"#7c3aed",transition:"width .4s" }} />
+        </div>
+        <p style={{ fontSize:13,color:"#666",margin:"10px 0 16px" }}>
+          {pct >= 100
+            ? "Meta batida esse mês. 🎉"
+            : `Faltam ${masked(Math.max(0, metaAporte - totalInvestimento))} — o lembrete aparece todo dia ${diaAporte}.`}
+        </p>
+        <button onClick={() => { setForm({ ...emptyForm(), type:"investimento", value:String(Math.max(0, metaAporte - totalInvestimento).toFixed(2)) }); setModal("add"); }}
+          style={{ padding:"10px 18px",background:"#7c3aed",color:"#fff",border:"none",borderRadius:9,cursor:"pointer",fontWeight:600,fontSize:14,fontFamily:"'DM Sans',sans-serif" }}>
+          + Registrar aporte
+        </button>
+
+        <div style={{ display:"flex",gap:12,marginTop:20,flexWrap:"wrap" }}>
+          <div style={{ flex:1,minWidth:130 }}>
+            <label style={{ fontSize:12,color:"#888",display:"block",marginBottom:4 }}>Meta mensal (R$)</label>
+            <input type="number" value={investCfg.meta ?? ""} onChange={(e) => setInvestCfg({ ...investCfg, meta: parseFloat(e.target.value) || 0 })} style={inputStyle} />
+          </div>
+          <div style={{ flex:1,minWidth:130 }}>
+            <label style={{ fontSize:12,color:"#888",display:"block",marginBottom:4 }}>Dia do lembrete</label>
+            <input type="number" min="1" max="28" value={investCfg.dia ?? ""} onChange={(e) => setInvestCfg({ ...investCfg, dia: parseInt(e.target.value) || 1 })} style={inputStyle} />
+          </div>
+        </div>
+      </Card>
+
+      {/* histórico */}
+      <Card>
+        <SectionTitle color="#7c3aed">Aportes dos Últimos 6 Meses</SectionTitle>
+        {chartData.map((m) => (
+          <div key={m.label} style={{ display:"flex",alignItems:"center",gap:10,padding:"7px 0" }}>
+            <span style={{ width:38,fontSize:13,color:"#666" }}>{m.label}</span>
+            <div style={{ flex:1,height:8,background:"#f3f4f6",borderRadius:99,overflow:"hidden" }}>
+              <div style={{ width:`${metaAporte>0?Math.min(100,(m.investimento/metaAporte)*100):0}%`,height:"100%",background:m.investimento>=metaAporte?"#16a34a":"#c4b5fd" }} />
+            </div>
+            <span style={{ width:90,textAlign:"right",fontSize:13,fontWeight:600,color:m.investimento>0?"#7c3aed":"#ccc" }}>{masked(m.investimento)}</span>
+          </div>
+        ))}
+      </Card>
+
+      {/* carteira do banco */}
+      <Card>
+        <SectionTitle color="#7c3aed">Carteira no Inter</SectionTitle>
+        {itensBanco.length === 0
+          ? <p style={{ color:"#ccc",fontSize:14,textAlign:"center",padding:"16px 0" }}>Nada sincronizado ainda — chega no próximo sync.</p>
+          : itensBanco.map((i, idx) => (
+            <div key={idx} style={{ display:"flex",justifyContent:"space-between",alignItems:"center",padding:"9px 0",borderBottom:"1px solid #f3f4f6",gap:10 }}>
+              <div style={{ minWidth:0 }}>
+                <p style={{ margin:0,fontSize:14,fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{i.name}</p>
+                <p style={{ margin:0,fontSize:12,color:"#999" }}>{i.type}</p>
+              </div>
+              <span style={{ fontSize:14,fontWeight:600,whiteSpace:"nowrap" }}>{masked(Number(i.value || 0))}</span>
+            </div>
+          ))}
+      </Card>
+
+      {/* investimentos de fora do Inter */}
+      <Card>
+        <SectionTitle color="#7c3aed">Fora do Inter</SectionTitle>
+        <p style={{ fontSize:13,color:"#666",marginTop:0 }}>
+          O que outra corretora guarda não vem pelo Open Finance. Cadastre aqui e atualize o valor quando quiser.
+        </p>
+        {manuais.map((m) => (
+          <div key={m.id} style={{ display:"flex",justifyContent:"space-between",alignItems:"center",padding:"9px 0",borderBottom:"1px solid #f3f4f6",gap:10 }}>
+            <span style={{ fontSize:14,fontWeight:500 }}>{m.name}</span>
+            <div style={{ display:"flex",alignItems:"center",gap:10 }}>
+              <span style={{ fontSize:14,fontWeight:600 }}>{masked(Number(m.value || 0))}</span>
+              <button onClick={() => setNome(m.name)} style={iconBtn} title="Atualizar valor">✏️</button>
+              <button onClick={() => setInvestCfg({ ...investCfg, manuais: manuais.filter((x) => x.id !== m.id) })} style={iconBtn} title="Remover">🗑️</button>
+            </div>
+          </div>
+        ))}
+        <div style={{ display:"flex",gap:10,marginTop:14,flexWrap:"wrap" }}>
+          <input placeholder="Ex: Fundo imobiliário" value={nome} onChange={(e) => setNome(e.target.value)} style={{ ...inputStyle,flex:2,minWidth:170 }} />
+          <input placeholder="Valor" value={valor} onChange={(e) => setValor(e.target.value)} style={{ ...inputStyle,flex:1,minWidth:110 }} />
+          <button onClick={salvarManual} style={{ padding:"10px 18px",background:"#7c3aed",color:"#fff",border:"none",borderRadius:9,cursor:"pointer",fontWeight:600,fontSize:14,fontFamily:"'DM Sans',sans-serif" }}>
+            Salvar
+          </button>
+        </div>
       </Card>
     </div>
   );

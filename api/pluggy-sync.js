@@ -108,8 +108,17 @@ export default async function handler(req, res) {
     const incoming = [];
     let bankBalance = null;
     const refreshStatus = {};
+    const investments = [];
     for (const itemId of itemIds) {
       refreshStatus[itemId] = await refreshItem(apiKey, itemId);
+
+      // carteira: só o que ainda tem saldo (os resgatados voltam zerados)
+      const { results: invs = [] } = await pluggyFetch(`/investments?itemId=${itemId}`, apiKey);
+      for (const inv of invs) {
+        const value = Number(inv.balance ?? 0);
+        if (value > 0) investments.push({ name: inv.name || inv.code || "Investimento", value, type: inv.type || "" });
+      }
+
       const { results: accounts = [] } = await pluggyFetch(`/accounts?itemId=${itemId}`, apiKey);
       for (const account of accounts) {
         const isCredit = String(account.type || "").toUpperCase().includes("CREDIT");
@@ -162,6 +171,16 @@ export default async function handler(req, res) {
     if (newTxs.length) {
       await txRef.set({ value: [...existing, ...newTxs] });
     }
+
+    // carteira do banco fica num doc só dela: o app escreve os investimentos
+    // manuais em outro doc, então um não sobrescreve o outro
+    await db.doc(`users/${uid}/data/investmentsBank`).set({
+      value: {
+        total: investments.reduce((s, i) => s + i.value, 0),
+        items: investments.sort((a, b) => b.value - a.value),
+        updatedAt: new Date().toISOString(),
+      },
+    });
 
     // saldo da conta "Inter" espelha o saldo real do banco
     if (bankBalance !== null && accSnap.exists) {
