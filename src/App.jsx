@@ -53,14 +53,16 @@ function useIsMobile() {
 export default function App() {
   const { user, logout } = useAuth();
   const isMobile = useIsMobile();
-  const [transactions, setTransactions] = useFirestoreData(user?.uid, "transactions", []);
+  const [transactions, setTransactions, txLoaded] = useFirestoreData(user?.uid, "transactions", []);
   const [accounts, setAccounts]         = useFirestoreData(user?.uid, "accounts", []);
-  const [recurrings, setRecurrings]     = useFirestoreData(user?.uid, "recurrings", []);
+  const [recurrings, setRecurrings, recLoaded]    = useFirestoreData(user?.uid, "recurrings", []);
   const [deletedRecurrings, setDeletedRecurrings] = useFirestoreData(user?.uid, "deletedRecurrings", []);
   const [categoryMap, setCategoryMap]   = useFirestoreData(user?.uid, "categoryMap", {});
   // carteira do banco (escrita pelo sync) e o que é cadastrado à mão (corretora de fora)
   const [investBank]                    = useFirestoreData(user?.uid, "investmentsBank", { total: 0, items: [] });
   const [investCfg, setInvestCfg]       = useFirestoreData(user?.uid, "investmentsConfig", { meta: 2500, dia: 9, manuais: [] });
+  // estabelecimentos que o detector achou fixos mas o Rafa marcou que não são
+  const [fixosIgnorados, setFixosIgnorados] = useFirestoreData(user?.uid, "fixosIgnorados", {});
   const [page, setPage]                 = useState("dashboard");
   const [month, setMonth]               = useState(TODAY.getMonth());
   const [year]                          = useState(TODAY.getFullYear());
@@ -120,6 +122,30 @@ export default function App() {
     });
   }, [month, recurrings, deletedRecurrings]);
 
+  // Cópia de recorrente cuja regra não existe mais, do mês atual em diante, é lixo —
+  // foi o que uma aba velha (com a lista antiga de recorrentes na memória) injetou
+  // em setembro. Só roda com as duas listas carregadas do servidor, senão uma lista
+  // ainda vazia faria tudo parecer órfão.
+  useEffect(() => {
+    if (!txLoaded || !recLoaded) return;
+    const regras = new Set(recurrings.map((r) => r.id));
+    const inicioMes = `${TODAY.getFullYear()}-${String(TODAY.getMonth() + 1).padStart(2, "0")}-01`;
+    const orfa = (t) => t.recurringId && !regras.has(t.recurringId) && t.date >= inicioMes;
+    if (transactions.some(orfa)) setTransactions((prev) => prev.filter((t) => !orfa(t)));
+  }, [txLoaded, recLoaded, recurrings, transactions]);
+
+  // Aba esquecida aberta no celular por dias guarda estado velho. Ao voltar pra ela
+  // depois de muitas horas, recarrega do zero em vez de trabalhar em cima disso.
+  useEffect(() => {
+    let escondidaEm = null;
+    const onVis = () => {
+      if (document.hidden) escondidaEm = Date.now();
+      else if (escondidaEm && Date.now() - escondidaEm > 6 * 3600 * 1000) window.location.reload();
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
+  }, []);
+
   const monthTx = transactions.filter((t) => {
     const d = new Date(t.date + "T12:00:00");
     return d.getMonth() === month && d.getFullYear() === year;
@@ -144,6 +170,48 @@ export default function App() {
   // só cobra o aporte no mês corrente, e a partir do dia escolhido
   const cobrarAporte       = month === TODAY.getMonth() && year === TODAY.getFullYear()
     && TODAY.getDate() >= diaAporte && faltaAportar > 0 && metaAporte > 0;
+
+  // ── gastos fixos, detectados no extrato ────────────────────────────────────
+  // Fixo = mesmo estabelecimento em pelo menos 2 dos últimos 3 meses, até 2 vezes
+  // por mês e com valor estável. Uber e mercado aparecem todo mês, mas muitas vezes
+  // e com valor variando, então ficam de fora.
+  const mesesRef = [0, 1, 2].map((k) => {
+    const d = new Date(year, month - k, 1);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  });
+  const fixos = (() => {
+    const porChave = {};
+    for (const t of transactions) {
+      if (t.type !== "despesa" || !String(t.fitid || "").startsWith("pluggy-")) continue;
+      const ym = String(t.date).slice(0, 7);
+      if (!mesesRef.includes(ym)) continue;
+      const chave = normalizeDesc(t.desc);
+      if (!chave || fixosIgnorados[chave]) continue;
+      if (!porChave[chave]) porChave[chave] = { chave, desc: t.desc, category: t.category, meses: {} };
+      const m = porChave[chave].meses[ym] || (porChave[chave].meses[ym] = { total: 0, qtd: 0 });
+      m.total += t.value;
+      m.qtd += 1;
+    }
+    return Object.values(porChave)
+      .filter((g) => {
+        const ms = Object.values(g.meses);
+        if (ms.length < 2 || ms.some((m) => m.qtd > 2)) return false;
+        const totais = ms.map((m) => m.total);
+        return Math.max(...totais) / Math.min(...totais) <= 1.35;
+      })
+      .map((g) => {
+        const ultimo = mesesRef.find((ym) => g.meses[ym]);
+        return { chave: g.chave, desc: g.desc, category: g.category, valor: g.meses[ultimo].total };
+      })
+      .sort((a, b) => b.valor - a.valor);
+  })();
+  const fixosTotal  = fixos.reduce((s, f) => s + f.valor, 0);
+  const chavesFixas = new Set(fixos.map((f) => f.chave));
+  const variavelMes = monthTx.filter((t) => t.type === "despesa" && !chavesFixas.has(normalizeDesc(t.desc))).reduce((s, t) => s + t.value, 0);
+  const salarioEm   = (ym) => transactions.filter((t) => t.type === "receita" && t.category === "Salário" && String(t.date).slice(0, 7) === ym).reduce((s, t) => s + t.value, 0);
+  const salarioRef  = salarioEm(mesesRef[0]) || salarioEm(mesesRef[1]);
+  const livreMes    = salarioRef - fixosTotal - metaAporte;
+  const ignorarFixo = (chave) => setFixosIgnorados((prev) => ({ ...prev, [chave]: true }));
 
   // Dias desde o último lançamento vindo do banco. Serve de alarme: se a conexão
   // do Open Finance cai, o app continua parecendo normal, só que mudo.
@@ -246,6 +314,12 @@ export default function App() {
     const currentYM = `${year}-${String(month + 1).padStart(2, "0")}`;
     setTransactions((prev) => prev.map((t) => t.id === id ? { ...t, reminderPaidMonth: currentYM } : t));
     showToast("Marcado como pago ✓");
+  };
+
+  // tira o lembrete de vez (o lançamento continua existindo)
+  const removeReminder = (id) => {
+    setTransactions((prev) => prev.map((t) => t.id === id ? { ...t, reminderDay: "", reminderPaidMonth: "" } : t));
+    showToast("Lembrete removido");
   };
 
   const deleteRecurring = (id) => {
@@ -530,7 +604,7 @@ export default function App() {
           </div>
         )}
 
-        {page === "dashboard"   && <Dashboard totalReceita={totalReceita} totalDespesa={totalDespesa} totalInvestimento={totalInvestimento} saldoGeral={saldoGeral} saldoMensal={saldoMensal} accounts={accounts} topGastos={topGastos} gastosPorCat={gastosPorCat} maxCat={maxCat} masked={masked} setModal={setModal} setForm={setForm} emptyForm={emptyForm} comparativo={comparativo} chartData={chartData} monthTx={monthTx} month={month} MONTHS={MONTHS} lembretes={lembretes} dismissReminder={dismissReminder} patrimonio={patrimonio} totalInvestido={totalInvestido} />}
+        {page === "dashboard"   && <Dashboard totalReceita={totalReceita} totalDespesa={totalDespesa} totalInvestimento={totalInvestimento} saldoGeral={saldoGeral} saldoMensal={saldoMensal} accounts={accounts} topGastos={topGastos} gastosPorCat={gastosPorCat} maxCat={maxCat} masked={masked} setModal={setModal} setForm={setForm} emptyForm={emptyForm} comparativo={comparativo} chartData={chartData} monthTx={monthTx} month={month} MONTHS={MONTHS} lembretes={lembretes} dismissReminder={dismissReminder} removeReminder={removeReminder} patrimonio={patrimonio} totalInvestido={totalInvestido} fixos={fixos} fixosTotal={fixosTotal} salarioRef={salarioRef} metaAporte={metaAporte} livreMes={livreMes} variavelMes={variavelMes} ignorarFixo={ignorarFixo} />}
         {page === "investimentos" && <Investimentos investBank={investBank} investCfg={investCfg} setInvestCfg={setInvestCfg} manuais={manuais} totalManuais={totalManuais} totalInvestido={totalInvestido} totalInvestimento={totalInvestimento} metaAporte={metaAporte} diaAporte={diaAporte} masked={masked} chartData={chartData} MONTHS={MONTHS} month={month} setForm={setForm} setModal={setModal} emptyForm={emptyForm} showToast={showToast} />}
         {page === "lancamentos" && <Lancamentos monthTx={monthTx} masked={masked} deleteTx={deleteTx} openEdit={openEdit} />}
         {page === "recorrentes" && <Recorrentes recurrings={recurrings} deleteRecurring={deleteRecurring} openEditRecurring={openEditRecurring} masked={masked} />}
@@ -904,7 +978,7 @@ function BarChart({ data }) {
 }
 
 // ─── pages ─────────────────────────────────────────────────────────────────
-function Dashboard({ totalReceita, totalDespesa, totalInvestimento, saldoGeral, saldoMensal, accounts, topGastos, gastosPorCat, maxCat, masked, setModal, setForm, emptyForm, comparativo, chartData, monthTx, month, MONTHS, lembretes, dismissReminder, patrimonio, totalInvestido }) {
+function Dashboard({ totalReceita, totalDespesa, totalInvestimento, saldoGeral, saldoMensal, accounts, topGastos, gastosPorCat, maxCat, masked, setModal, setForm, emptyForm, comparativo, chartData, monthTx, month, MONTHS, lembretes, dismissReminder, removeReminder, patrimonio, totalInvestido, fixos, fixosTotal, salarioRef, metaAporte, livreMes, variavelMes, ignorarFixo }) {
   const isMob = typeof window!=="undefined" && window.innerWidth<768;
   return (
     <div style={{ animation:"fadeUp .4s ease",display:"flex",flexDirection:"column",gap:20 }}>
@@ -930,6 +1004,47 @@ function Dashboard({ totalReceita, totalDespesa, totalInvestimento, saldoGeral, 
         <SCard title="Aporte do mês" value={masked(totalInvestimento)} color="#7c3aed" bg="#f5f3ff" />
         <SCard title="Sobrou no mês" value={masked(saldoMensal)} color={saldoMensal>=0?"#15803d":"#dc2626"} bg="#fff" />
       </div>
+
+      {/* a conta que importa pra decidir uma compra: o que sobra depois do fixo e do aporte */}
+      <Card>
+        <SectionTitle color="#0f766e">Quanto dá pra gastar no mês</SectionTitle>
+        {[
+          ["Salário", salarioRef, "#16a34a", "+"],
+          [`Gastos fixos (${fixos.length})`, fixosTotal, "#dc2626", "−"],
+          ["Meta de aporte", metaAporte, "#7c3aed", "−"],
+        ].map(([rotulo, v, cor, sinal]) => (
+          <div key={rotulo} style={{ display:"flex",justifyContent:"space-between",padding:"6px 0",fontSize:14 }}>
+            <span style={{ color:"#555" }}>{rotulo}</span>
+            <span style={{ fontWeight:600,color:cor,fontFamily:"'DM Mono',monospace" }}>{sinal} {masked(v)}</span>
+          </div>
+        ))}
+        <div style={{ display:"flex",justifyContent:"space-between",padding:"10px 0 4px",marginTop:4,borderTop:"1px solid #e5e7eb",fontSize:15,fontWeight:700 }}>
+          <span>Livre para gastar</span>
+          <span style={{ color:livreMes>=0?"#0f766e":"#dc2626",fontFamily:"'DM Mono',monospace" }}>{masked(livreMes)}</span>
+        </div>
+        <div style={{ margin:"14px 0 6px",height:10,background:"#f3f4f6",borderRadius:99,overflow:"hidden" }}>
+          <div style={{ width:`${livreMes>0?Math.min(100,(variavelMes/livreMes)*100):100}%`,height:"100%",background:variavelMes>livreMes?"#dc2626":"#0f766e",transition:"width .4s" }} />
+        </div>
+        <p style={{ margin:0,fontSize:13,color:"#666" }}>
+          Gasto variável até agora: <b>{masked(variavelMes)}</b> ·{" "}
+          {variavelMes <= livreMes ? `ainda cabem ${masked(livreMes - variavelMes)}` : `passou ${masked(variavelMes - livreMes)} do livre`}
+        </p>
+        <details style={{ marginTop:12 }}>
+          <summary style={{ cursor:"pointer",fontSize:13,color:"#0f766e",fontWeight:600 }}>Ver gastos fixos</summary>
+          {fixos.map((f) => (
+            <div key={f.chave} style={{ display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,padding:"8px 0",borderBottom:"1px solid #f3f4f6" }}>
+              <span style={{ fontSize:13,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{ICONS[f.category]||"📌"} {f.desc}</span>
+              <div style={{ display:"flex",alignItems:"center",gap:6,flexShrink:0 }}>
+                <span style={{ fontSize:13,fontWeight:600,fontFamily:"'DM Mono',monospace" }}>{masked(f.valor)}</span>
+                <button onClick={() => ignorarFixo(f.chave)} title="Não é gasto fixo" style={iconBtn}>✕</button>
+              </div>
+            </div>
+          ))}
+          <p style={{ margin:"8px 0 0",fontSize:11,color:"#999" }}>
+            Detectado sozinho: o que aparece no extrato em pelo menos 2 dos últimos 3 meses com valor parecido. ✕ tira da lista.
+          </p>
+        </details>
+      </Card>
 
       {/* quick actions */}
       <Card>
@@ -1011,6 +1126,7 @@ function Dashboard({ totalReceita, totalDespesa, totalInvestimento, saldoGeral, 
                     <span style={{ fontSize:12,fontWeight:700,padding:"3px 10px",borderRadius:20,background:color,color:"#fff" }}>{label}</span>
                     <span style={{ fontWeight:700,fontFamily:"'DM Mono',monospace",fontSize:13,color }}>{fmt(t.value)}</span>
                     <button onClick={() => dismissReminder(t.id)} title="Marcar como pago" style={{ background:"#f0fdf4",border:"1px solid #86efac",borderRadius:8,cursor:"pointer",fontSize:13,padding:"4px 10px",color:"#15803d",fontWeight:600,fontFamily:"'DM Sans',sans-serif" }}>✓ Pago</button>
+                    <button onClick={() => removeReminder(t.id)} title="Não pago mais isso — remover lembrete" style={iconBtn}>✕</button>
                   </div>
                 </div>
               );
