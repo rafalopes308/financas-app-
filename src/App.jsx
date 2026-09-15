@@ -11,14 +11,14 @@ const MONTHS = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov
 const TODAY = new Date();
 
 const CATEGORIES = {
-  despesa:     ["Alimentação","Moradia","Transporte","Saúde","Lazer","Educação","Roupas","Assinaturas","Ferramentas","Esporte","Outros"],
+  despesa:     ["Alimentação","Moradia","Transporte","Saúde","Lazer","Educação","Roupas","Assinaturas","Ferramentas","Esporte","Viagem","Outros"],
   receita:     ["Salário","Freelance","Aluguel recebido","Dividendos","Outros"],
   investimento:["Tesouro Direto","Ações","Fundos","Cripto","Poupança","Previdência","Outros"],
 };
 
 const ICONS = {
   "Alimentação":"🍽️","Moradia":"🏠","Transporte":"🚗","Saúde":"💊","Lazer":"🎮",
-  "Educação":"📚","Roupas":"👕","Assinaturas":"📱","Ferramentas":"🛠️","Esporte":"💚","Salário":"💼","Freelance":"💻",
+  "Educação":"📚","Roupas":"👕","Assinaturas":"📱","Ferramentas":"🛠️","Esporte":"💚","Viagem":"✈️","Salário":"💼","Freelance":"💻",
   "Aluguel recebido":"🏢","Dividendos":"💰","Tesouro Direto":"🏛️","Ações":"📈",
   "Fundos":"🏦","Cripto":"₿","Poupança":"🐷","Previdência":"🔒","Outros":"📌",
 };
@@ -207,7 +207,10 @@ export default function App() {
   })();
   const fixosTotal  = fixos.reduce((s, f) => s + f.valor, 0);
   const chavesFixas = new Set(fixos.map((f) => f.chave));
-  const variavelMes = monthTx.filter((t) => t.type === "despesa" && !chavesFixas.has(normalizeDesc(t.desc))).reduce((s, t) => s + t.value, 0);
+  // Viagem é gasto planejado e pontual (pago antes, às vezes meses antes): fica
+  // fora do orçamento do mês pra não parecer que o dia a dia estourou.
+  const viagemMes   = monthTx.filter((t) => t.type === "despesa" && t.category === "Viagem").reduce((s, t) => s + t.value, 0);
+  const variavelMes = monthTx.filter((t) => t.type === "despesa" && t.category !== "Viagem" && !chavesFixas.has(normalizeDesc(t.desc))).reduce((s, t) => s + t.value, 0);
   const salarioEm   = (ym) => transactions.filter((t) => t.type === "receita" && t.category === "Salário" && String(t.date).slice(0, 7) === ym).reduce((s, t) => s + t.value, 0);
   const salarioRef  = salarioEm(mesesRef[0]) || salarioEm(mesesRef[1]);
   const livreMes    = salarioRef - fixosTotal - metaAporte;
@@ -604,7 +607,7 @@ export default function App() {
           </div>
         )}
 
-        {page === "dashboard"   && <Dashboard totalReceita={totalReceita} totalDespesa={totalDespesa} totalInvestimento={totalInvestimento} saldoGeral={saldoGeral} saldoMensal={saldoMensal} accounts={accounts} topGastos={topGastos} gastosPorCat={gastosPorCat} maxCat={maxCat} masked={masked} setModal={setModal} setForm={setForm} emptyForm={emptyForm} comparativo={comparativo} chartData={chartData} monthTx={monthTx} month={month} MONTHS={MONTHS} lembretes={lembretes} dismissReminder={dismissReminder} removeReminder={removeReminder} patrimonio={patrimonio} totalInvestido={totalInvestido} fixos={fixos} fixosTotal={fixosTotal} salarioRef={salarioRef} metaAporte={metaAporte} livreMes={livreMes} variavelMes={variavelMes} ignorarFixo={ignorarFixo} />}
+        {page === "dashboard"   && <Dashboard totalReceita={totalReceita} totalDespesa={totalDespesa} totalInvestimento={totalInvestimento} saldoGeral={saldoGeral} saldoMensal={saldoMensal} accounts={accounts} topGastos={topGastos} gastosPorCat={gastosPorCat} maxCat={maxCat} masked={masked} setModal={setModal} setForm={setForm} emptyForm={emptyForm} comparativo={comparativo} chartData={chartData} monthTx={monthTx} month={month} MONTHS={MONTHS} lembretes={lembretes} dismissReminder={dismissReminder} removeReminder={removeReminder} patrimonio={patrimonio} totalInvestido={totalInvestido} fixos={fixos} fixosTotal={fixosTotal} salarioRef={salarioRef} metaAporte={metaAporte} livreMes={livreMes} variavelMes={variavelMes} viagemMes={viagemMes} ignorarFixo={ignorarFixo} />}
         {page === "investimentos" && <Investimentos investBank={investBank} investCfg={investCfg} setInvestCfg={setInvestCfg} manuais={manuais} totalManuais={totalManuais} totalInvestido={totalInvestido} totalInvestimento={totalInvestimento} metaAporte={metaAporte} diaAporte={diaAporte} masked={masked} chartData={chartData} MONTHS={MONTHS} month={month} setForm={setForm} setModal={setModal} emptyForm={emptyForm} showToast={showToast} />}
         {page === "lancamentos" && <Lancamentos monthTx={monthTx} masked={masked} deleteTx={deleteTx} openEdit={openEdit} />}
         {page === "recorrentes" && <Recorrentes recurrings={recurrings} deleteRecurring={deleteRecurring} openEditRecurring={openEditRecurring} masked={masked} />}
@@ -978,7 +981,7 @@ function BarChart({ data }) {
 }
 
 // ─── pages ─────────────────────────────────────────────────────────────────
-function Dashboard({ totalReceita, totalDespesa, totalInvestimento, saldoGeral, saldoMensal, accounts, topGastos, gastosPorCat, maxCat, masked, setModal, setForm, emptyForm, comparativo, chartData, monthTx, month, MONTHS, lembretes, dismissReminder, removeReminder, patrimonio, totalInvestido, fixos, fixosTotal, salarioRef, metaAporte, livreMes, variavelMes, ignorarFixo }) {
+function Dashboard({ totalReceita, totalDespesa, totalInvestimento, saldoGeral, saldoMensal, accounts, topGastos, gastosPorCat, maxCat, masked, setModal, setForm, emptyForm, comparativo, chartData, monthTx, month, MONTHS, lembretes, dismissReminder, removeReminder, patrimonio, totalInvestido, fixos, fixosTotal, salarioRef, metaAporte, livreMes, variavelMes, viagemMes, ignorarFixo }) {
   const isMob = typeof window!=="undefined" && window.innerWidth<768;
   return (
     <div style={{ animation:"fadeUp .4s ease",display:"flex",flexDirection:"column",gap:20 }}>
@@ -1029,6 +1032,11 @@ function Dashboard({ totalReceita, totalDespesa, totalInvestimento, saldoGeral, 
           Gasto variável até agora: <b>{masked(variavelMes)}</b> ·{" "}
           {variavelMes <= livreMes ? `ainda cabem ${masked(livreMes - variavelMes)}` : `passou ${masked(variavelMes - livreMes)} do livre`}
         </p>
+        {viagemMes > 0 && (
+          <p style={{ margin:"6px 0 0",fontSize:13,color:"#666" }}>
+            ✈️ Viagem este mês: <b>{masked(viagemMes)}</b> — fora do livre, é gasto planejado.
+          </p>
+        )}
         <details style={{ marginTop:12 }}>
           <summary style={{ cursor:"pointer",fontSize:13,color:"#0f766e",fontWeight:600 }}>Ver gastos fixos</summary>
           {fixos.map((f) => (
