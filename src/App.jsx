@@ -829,12 +829,9 @@ export default function App() {
         </Overlay>
       )}
 
-      <LoganMascot />
-
       <style>{`
         @keyframes slideIn  { from { transform:translateX(16px);opacity:0 } to { transform:translateX(0);opacity:1 } }
         @keyframes fadeUp   { from { transform:translateY(14px);opacity:0 } to { transform:translateY(0);opacity:1 } }
-        @keyframes loganBob { 0%,100% { transform:translateY(0) } 50% { transform:translateY(-5px) } }
         @keyframes popIn    { from { transform:scale(.82);opacity:0 } to { transform:scale(1);opacity:1 } }
         * { box-sizing:border-box }
         ::-webkit-scrollbar { width:5px } ::-webkit-scrollbar-thumb { background:#d1d5db;border-radius:3px }
@@ -1463,100 +1460,6 @@ function Relatorios({ monthTx, totalReceita, totalDespesa, totalInvestimento, ma
           ))}
         </div>
       </Card>
-    </div>
-  );
-}
-
-// ─── logan mascot ──────────────────────────────────────────────────────────
-const LOGAN_QUOTES = [
-  "You are not\nserious people.",
-  "BOAR ON\nTHE FLOOR!",
-  "I win.",
-  "You can't make a Tomlette without\nbreaking some Greggs.",
-  "Makes the\nblood flow.",
-  "My plan was always to hand over the reins.\nJust not to any of you.",
-  "Nothing is a line.\nEverything is always moving.",
-  "Go on. Get.\nYou're not good enough.",
-  "No real person involved.",
-  "I'm not going to apologize\nfor what I am.",
-  "Son, the world isn't\ngoing to miss a beat.",
-  "I love you.\nBut you are not serious people.",
-];
-
-function LoganMascot() {
-  const [idx, setIdx] = useState(0);
-  const [bubbleKey, setBubbleKey] = useState(0);
-
-  const next = () => { setIdx((i) => (i + 1) % LOGAN_QUOTES.length); setBubbleKey((k) => k + 1); };
-
-  useEffect(() => { const t = setInterval(next, 30000); return () => clearInterval(t); }, []);
-
-  return (
-    <div style={{ position:"fixed",bottom:24,right:24,zIndex:500,display:"flex",flexDirection:"column",alignItems:"center",gap:6,userSelect:"none" }}>
-      {/* speech bubble */}
-      <div key={bubbleKey} onClick={next} style={{
-        position:"relative", background:"#fff", border:"2.5px solid #111",
-        borderRadius:14, padding:"10px 13px", maxWidth:185, fontSize:11, fontWeight:700,
-        lineHeight:1.6, cursor:"pointer", textAlign:"center", color:"#111",
-        boxShadow:"3px 3px 0 #111", animation:"popIn .22s ease",
-        fontFamily:"'DM Mono',monospace", whiteSpace:"pre-line", letterSpacing:.2,
-      }}>
-        "{LOGAN_QUOTES[idx]}"
-        <div style={{ position:"absolute",bottom:-12,left:"50%",transform:"translateX(-50%)",width:0,height:0,borderLeft:"8px solid transparent",borderRight:"8px solid transparent",borderTop:"12px solid #111" }}/>
-        <div style={{ position:"absolute",bottom:-8,left:"50%",transform:"translateX(-50%)",width:0,height:0,borderLeft:"6px solid transparent",borderRight:"6px solid transparent",borderTop:"9px solid #fff" }}/>
-      </div>
-
-      {/* pixel art character */}
-      <div onClick={next} title="Click for Logan wisdom" style={{ cursor:"pointer",animation:"loganBob 1.6s ease-in-out infinite" }}>
-        <svg width="56" height="70" viewBox="0 0 16 20" style={{ imageRendering:"pixelated",display:"block" }}>
-          {/* sparse hair top */}
-          <rect x="3" y="0" width="10" height="1" fill="#ccc"/>
-          {/* side hair (gray) */}
-          <rect x="2" y="1" width="2" height="3" fill="#aaa"/>
-          <rect x="12" y="1" width="2" height="3" fill="#aaa"/>
-          {/* face */}
-          <rect x="3" y="1" width="10" height="6" fill="#d4956a"/>
-          {/* furrowed eyebrows */}
-          <rect x="4" y="2" width="3" height="1" fill="#555"/>
-          <rect x="9" y="2" width="3" height="1" fill="#555"/>
-          {/* eyes - small and stern */}
-          <rect x="4" y="3" width="2" height="1" fill="#2d1a0e"/>
-          <rect x="10" y="3" width="2" height="1" fill="#2d1a0e"/>
-          {/* nose */}
-          <rect x="7" y="4" width="2" height="1" fill="#b8784a"/>
-          {/* frown */}
-          <rect x="5" y="6" width="6" height="1" fill="#8b4513"/>
-          <rect x="4" y="5" width="1" height="1" fill="#8b4513"/>
-          <rect x="11" y="5" width="1" height="1" fill="#8b4513"/>
-          {/* neck */}
-          <rect x="6" y="7" width="4" height="1" fill="#d4956a"/>
-          {/* white collar */}
-          <rect x="5" y="7" width="6" height="2" fill="#f0f0f0"/>
-          {/* suit body */}
-          <rect x="2" y="8" width="12" height="8" fill="#1c2340"/>
-          {/* white shirt front */}
-          <rect x="6" y="8" width="4" height="8" fill="#f0f0f0"/>
-          {/* red power tie */}
-          <rect x="7" y="8" width="2" height="6" fill="#cc0000"/>
-          <rect x="7" y="14" width="2" height="2" fill="#990000"/>
-          {/* lapels */}
-          <rect x="6" y="8" width="2" height="4" fill="#1c2340"/>
-          <rect x="8" y="8" width="2" height="4" fill="#1c2340"/>
-          {/* arms */}
-          <rect x="0" y="8" width="2" height="7" fill="#1c2340"/>
-          <rect x="14" y="8" width="2" height="7" fill="#1c2340"/>
-          {/* hands */}
-          <rect x="0" y="15" width="2" height="1" fill="#d4956a"/>
-          <rect x="14" y="15" width="2" height="1" fill="#d4956a"/>
-          {/* legs */}
-          <rect x="3" y="16" width="4" height="3" fill="#111"/>
-          <rect x="9" y="16" width="4" height="3" fill="#111"/>
-          {/* shoes */}
-          <rect x="2" y="18" width="5" height="2" fill="#000"/>
-          <rect x="9" y="18" width="5" height="2" fill="#000"/>
-        </svg>
-      </div>
-      <span style={{ fontSize:8,fontWeight:800,letterSpacing:2,color:"#888",textTransform:"uppercase",fontFamily:"'DM Mono',monospace" }}>LOGAN ROY</span>
     </div>
   );
 }
