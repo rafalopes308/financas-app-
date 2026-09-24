@@ -11,14 +11,14 @@ const MONTHS = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov
 const TODAY = new Date();
 
 const CATEGORIES = {
-  despesa:     ["Alimentação","Moradia","Transporte","Saúde","Lazer","Educação","Roupas","Assinaturas","Ferramentas","Esporte","Viagem","Outros"],
+  despesa:     ["Alimentação","Moradia","Transporte","Saúde","Lazer","Educação","Roupas","Assinaturas","Ferramentas","Esporte","Viagem","Barbeiro","Outros"],
   receita:     ["Salário","Freelance","Aluguel recebido","Dividendos","Presente","Outros"],
   investimento:["Tesouro Direto","Ações","Fundos","Cripto","Poupança","Previdência","Outros"],
 };
 
 const ICONS = {
   "Alimentação":"🍽️","Moradia":"🏠","Transporte":"🚗","Saúde":"💊","Lazer":"🎮",
-  "Educação":"📚","Roupas":"👕","Assinaturas":"📱","Ferramentas":"🛠️","Esporte":"💚","Viagem":"✈️","Salário":"💼","Freelance":"💻",
+  "Educação":"📚","Roupas":"👕","Assinaturas":"📱","Ferramentas":"🛠️","Esporte":"💚","Viagem":"✈️","Barbeiro":"💈","Salário":"💼","Freelance":"💻",
   "Aluguel recebido":"🏢","Dividendos":"💰","Presente":"🎁","Tesouro Direto":"🏛️","Ações":"📈",
   "Fundos":"🏦","Cripto":"₿","Poupança":"🐷","Previdência":"🔒","Outros":"📌",
 };
