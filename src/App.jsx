@@ -12,14 +12,14 @@ const TODAY = new Date();
 
 const CATEGORIES = {
   despesa:     ["Alimentação","Moradia","Transporte","Saúde","Lazer","Educação","Roupas","Assinaturas","Ferramentas","Esporte","Viagem","Outros"],
-  receita:     ["Salário","Freelance","Aluguel recebido","Dividendos","Outros"],
+  receita:     ["Salário","Freelance","Aluguel recebido","Dividendos","Presente","Outros"],
   investimento:["Tesouro Direto","Ações","Fundos","Cripto","Poupança","Previdência","Outros"],
 };
 
 const ICONS = {
   "Alimentação":"🍽️","Moradia":"🏠","Transporte":"🚗","Saúde":"💊","Lazer":"🎮",
   "Educação":"📚","Roupas":"👕","Assinaturas":"📱","Ferramentas":"🛠️","Esporte":"💚","Viagem":"✈️","Salário":"💼","Freelance":"💻",
-  "Aluguel recebido":"🏢","Dividendos":"💰","Tesouro Direto":"🏛️","Ações":"📈",
+  "Aluguel recebido":"🏢","Dividendos":"💰","Presente":"🎁","Tesouro Direto":"🏛️","Ações":"📈",
   "Fundos":"🏦","Cripto":"₿","Poupança":"🐷","Previdência":"🔒","Outros":"📌",
 };
 
