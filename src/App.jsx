@@ -64,6 +64,9 @@ export default function App() {
   // estabelecimentos que o detector achou fixos mas o Rafa marcou que não são
   const [fixosIgnorados, setFixosIgnorados] = useFirestoreData(user?.uid, "fixosIgnorados", {});
   const [extrasIgnorados, setExtrasIgnorados] = useFirestoreData(user?.uid, "extrasIgnorados", {});
+  // fixos marcados na mão: o detector precisa de 2-3 meses de histórico, isso
+  // salva quem acabou de começar do zero (ou mudou de aluguel esse mês)
+  const [fixosManuais, setFixosManuais] = useFirestoreData(user?.uid, "fixosManuais", {});
   const [page, setPage]                 = useState("dashboard");
   const [month, setMonth]               = useState(TODAY.getMonth());
   const [year]                          = useState(TODAY.getFullYear());
@@ -195,6 +198,7 @@ export default function App() {
     }
     return Object.values(porChave)
       .filter((g) => {
+        if (fixosManuais[g.chave]) return true;
         const ms = Object.values(g.meses);
         if (ms.length < 2 || ms.some((m) => m.qtd > 2)) return false;
         const totais = ms.map((m) => m.total);
@@ -224,6 +228,7 @@ export default function App() {
   const salarioRef  = salarioEm(mesesRef[0]) || salarioEm(mesesRef[1]);
   const livreMes    = salarioRef - fixosTotal - metaAporte;
   const ignorarFixo = (chave) => setFixosIgnorados((prev) => ({ ...prev, [chave]: true }));
+  const marcarFixo  = (chave) => { setFixosManuais((prev) => ({ ...prev, [chave]: true })); setFixosIgnorados((prev) => { const n = { ...prev }; delete n[chave]; return n; }); };
 
   // Dias desde o último lançamento vindo do banco. Serve de alarme: se a conexão
   // do Open Finance cai, o app continua parecendo normal, só que mudo.
@@ -616,7 +621,7 @@ export default function App() {
           </div>
         )}
 
-        {page === "dashboard"   && <Dashboard totalReceita={totalReceita} totalDespesa={totalDespesa} totalInvestimento={totalInvestimento} saldoGeral={saldoGeral} saldoMensal={saldoMensal} accounts={accounts} topGastos={topGastos} gastosPorCat={gastosPorCat} maxCat={maxCat} masked={masked} setModal={setModal} setForm={setForm} emptyForm={emptyForm} comparativo={comparativo} chartData={chartData} monthTx={monthTx} month={month} MONTHS={MONTHS} lembretes={lembretes} dismissReminder={dismissReminder} removeReminder={removeReminder} patrimonio={patrimonio} totalInvestido={totalInvestido} fixos={fixos} fixosTotal={fixosTotal} salarioRef={salarioRef} metaAporte={metaAporte} livreMes={livreMes} diaADia={diaADia} extras={extras} extrasTotal={extrasTotal} fixosNoMes={fixosNoMes} naoEhExtra={naoEhExtra} ignorarFixo={ignorarFixo} />}
+        {page === "dashboard"   && <Dashboard totalReceita={totalReceita} totalDespesa={totalDespesa} totalInvestimento={totalInvestimento} saldoGeral={saldoGeral} saldoMensal={saldoMensal} accounts={accounts} topGastos={topGastos} gastosPorCat={gastosPorCat} maxCat={maxCat} masked={masked} setModal={setModal} setForm={setForm} emptyForm={emptyForm} comparativo={comparativo} chartData={chartData} monthTx={monthTx} month={month} MONTHS={MONTHS} lembretes={lembretes} dismissReminder={dismissReminder} removeReminder={removeReminder} patrimonio={patrimonio} totalInvestido={totalInvestido} fixos={fixos} fixosTotal={fixosTotal} salarioRef={salarioRef} metaAporte={metaAporte} livreMes={livreMes} diaADia={diaADia} extras={extras} extrasTotal={extrasTotal} fixosNoMes={fixosNoMes} naoEhExtra={naoEhExtra} ignorarFixo={ignorarFixo} marcarFixo={marcarFixo} />}
         {page === "investimentos" && <Investimentos investBank={investBank} investCfg={investCfg} setInvestCfg={setInvestCfg} manuais={manuais} totalManuais={totalManuais} totalInvestido={totalInvestido} totalInvestimento={totalInvestimento} metaAporte={metaAporte} diaAporte={diaAporte} masked={masked} chartData={chartData} MONTHS={MONTHS} month={month} setForm={setForm} setModal={setModal} emptyForm={emptyForm} showToast={showToast} />}
         {page === "lancamentos" && <Lancamentos monthTx={monthTx} masked={masked} deleteTx={deleteTx} openEdit={openEdit} />}
         {page === "recorrentes" && <Recorrentes recurrings={recurrings} deleteRecurring={deleteRecurring} openEditRecurring={openEditRecurring} masked={masked} />}
@@ -987,7 +992,7 @@ function BarChart({ data }) {
 }
 
 // ─── pages ─────────────────────────────────────────────────────────────────
-function Dashboard({ totalReceita, totalDespesa, totalInvestimento, saldoGeral, saldoMensal, accounts, topGastos, gastosPorCat, maxCat, masked, setModal, setForm, emptyForm, comparativo, chartData, monthTx, month, MONTHS, lembretes, dismissReminder, removeReminder, patrimonio, totalInvestido, fixos, fixosTotal, salarioRef, metaAporte, livreMes, diaADia, extras, extrasTotal, fixosNoMes, naoEhExtra, ignorarFixo }) {
+function Dashboard({ totalReceita, totalDespesa, totalInvestimento, saldoGeral, saldoMensal, accounts, topGastos, gastosPorCat, maxCat, masked, setModal, setForm, emptyForm, comparativo, chartData, monthTx, month, MONTHS, lembretes, dismissReminder, removeReminder, patrimonio, totalInvestido, fixos, fixosTotal, salarioRef, metaAporte, livreMes, diaADia, extras, extrasTotal, fixosNoMes, naoEhExtra, ignorarFixo, marcarFixo }) {
   const isMob = typeof window!=="undefined" && window.innerWidth<768;
   return (
     <div style={{ animation:"fadeUp .4s ease",display:"flex",flexDirection:"column",gap:20 }}>
@@ -1046,12 +1051,13 @@ function Dashboard({ totalReceita, totalDespesa, totalInvestimento, saldoGeral, 
                 <span style={{ fontSize:13,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{ICONS[t.category]||"📌"} {t.desc}</span>
                 <div style={{ display:"flex",alignItems:"center",gap:6,flexShrink:0 }}>
                   <span style={{ fontSize:13,fontWeight:600,fontFamily:"'DM Mono',monospace" }}>{masked(t.value)}</span>
+                  <button onClick={() => marcarFixo(normalizeDesc(t.desc))} title="É gasto fixo, todo mês" style={iconBtn}>📌</button>
                   <button onClick={() => naoEhExtra(t.id)} title="Não é extra, é do dia a dia" style={iconBtn}>✕</button>
                 </div>
               </div>
             ))}
             <p style={{ margin:"8px 0 0",fontSize:11,color:"#999" }}>
-              Extra = gasto acima de R$ 500 que não é fixo, ou qualquer lançamento de Viagem. ✕ joga pro dia a dia.
+              Extra = gasto acima de R$ 500 que não é fixo, ou qualquer lançamento de Viagem. 📌 marca como gasto fixo, ✕ joga pro dia a dia.
             </p>
           </details>
         )}
@@ -1083,7 +1089,7 @@ function Dashboard({ totalReceita, totalDespesa, totalInvestimento, saldoGeral, 
             </div>
           ))}
           <p style={{ margin:"8px 0 0",fontSize:11,color:"#999" }}>
-            Detectado sozinho: o que aparece no extrato em pelo menos 2 dos últimos 3 meses com valor parecido. ✕ tira da lista.
+            Detectado sozinho: o que aparece no extrato em pelo menos 2 dos últimos 3 meses com valor parecido — ou o que você marcou com 📌. ✕ tira da lista.
           </p>
         </details>
       </Card>
