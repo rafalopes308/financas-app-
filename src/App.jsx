@@ -138,6 +138,13 @@ export default function App() {
     if (transactions.some(orfa)) setTransactions((prev) => prev.filter((t) => !orfa(t)));
   }, [txLoaded, recLoaded, recurrings, transactions]);
 
+  // Atalho da tela inicial: /?categorizar=1 já abre direto na lista de pendentes
+  useEffect(() => {
+    if (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("categorizar")) {
+      setModal("categorizar");
+    }
+  }, []);
+
   // Aba esquecida aberta no celular por dias guarda estado velho. Ao voltar pra ela
   // depois de muitas horas, recarrega do zero em vez de trabalhar em cima disso.
   useEffect(() => {
