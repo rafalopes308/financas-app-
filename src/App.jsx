@@ -63,6 +63,7 @@ export default function App() {
   const [investCfg, setInvestCfg]       = useFirestoreData(user?.uid, "investmentsConfig", { meta: 2500, dia: 9, manuais: [] });
   // estabelecimentos que o detector achou fixos mas o Rafa marcou que não são
   const [fixosIgnorados, setFixosIgnorados] = useFirestoreData(user?.uid, "fixosIgnorados", {});
+  const [extrasIgnorados, setExtrasIgnorados] = useFirestoreData(user?.uid, "extrasIgnorados", {});
   const [page, setPage]                 = useState("dashboard");
   const [month, setMonth]               = useState(TODAY.getMonth());
   const [year]                          = useState(TODAY.getFullYear());
@@ -207,10 +208,18 @@ export default function App() {
   })();
   const fixosTotal  = fixos.reduce((s, f) => s + f.valor, 0);
   const chavesFixas = new Set(fixos.map((f) => f.chave));
-  // Viagem é gasto planejado e pontual (pago antes, às vezes meses antes): fica
-  // fora do orçamento do mês pra não parecer que o dia a dia estourou.
-  const viagemMes   = monthTx.filter((t) => t.type === "despesa" && t.category === "Viagem").reduce((s, t) => s + t.value, 0);
-  const variavelMes = monthTx.filter((t) => t.type === "despesa" && t.category !== "Viagem" && !chavesFixas.has(normalizeDesc(t.desc))).reduce((s, t) => s + t.value, 0);
+  // Todo gasto do mês cai em uma de três caixas: fixo (repete sempre), extra
+  // pontual (aquele gasto grande que não acontece todo mês) e dia a dia (o resto).
+  // Sem separar o extra, um mês com obra ou viagem parece descontrole de rotina.
+  const LIMITE_EXTRA = 500;
+  const fixosNoMes  = monthTx.filter((t) => t.type === "despesa" && chavesFixas.has(normalizeDesc(t.desc))).reduce((s, t) => s + t.value, 0);
+  const extras      = monthTx
+    .filter((t) => t.type === "despesa" && !chavesFixas.has(normalizeDesc(t.desc)) && !extrasIgnorados[t.id]
+                && (t.value >= LIMITE_EXTRA || t.category === "Viagem"))
+    .sort((a, b) => b.value - a.value);
+  const extrasTotal = extras.reduce((s, t) => s + t.value, 0);
+  const diaADia     = Math.max(0, totalDespesa - fixosNoMes - extrasTotal);
+  const naoEhExtra  = (id) => setExtrasIgnorados((prev) => ({ ...prev, [id]: true }));
   const salarioEm   = (ym) => transactions.filter((t) => t.type === "receita" && t.category === "Salário" && String(t.date).slice(0, 7) === ym).reduce((s, t) => s + t.value, 0);
   const salarioRef  = salarioEm(mesesRef[0]) || salarioEm(mesesRef[1]);
   const livreMes    = salarioRef - fixosTotal - metaAporte;
@@ -607,7 +616,7 @@ export default function App() {
           </div>
         )}
 
-        {page === "dashboard"   && <Dashboard totalReceita={totalReceita} totalDespesa={totalDespesa} totalInvestimento={totalInvestimento} saldoGeral={saldoGeral} saldoMensal={saldoMensal} accounts={accounts} topGastos={topGastos} gastosPorCat={gastosPorCat} maxCat={maxCat} masked={masked} setModal={setModal} setForm={setForm} emptyForm={emptyForm} comparativo={comparativo} chartData={chartData} monthTx={monthTx} month={month} MONTHS={MONTHS} lembretes={lembretes} dismissReminder={dismissReminder} removeReminder={removeReminder} patrimonio={patrimonio} totalInvestido={totalInvestido} fixos={fixos} fixosTotal={fixosTotal} salarioRef={salarioRef} metaAporte={metaAporte} livreMes={livreMes} variavelMes={variavelMes} viagemMes={viagemMes} ignorarFixo={ignorarFixo} />}
+        {page === "dashboard"   && <Dashboard totalReceita={totalReceita} totalDespesa={totalDespesa} totalInvestimento={totalInvestimento} saldoGeral={saldoGeral} saldoMensal={saldoMensal} accounts={accounts} topGastos={topGastos} gastosPorCat={gastosPorCat} maxCat={maxCat} masked={masked} setModal={setModal} setForm={setForm} emptyForm={emptyForm} comparativo={comparativo} chartData={chartData} monthTx={monthTx} month={month} MONTHS={MONTHS} lembretes={lembretes} dismissReminder={dismissReminder} removeReminder={removeReminder} patrimonio={patrimonio} totalInvestido={totalInvestido} fixos={fixos} fixosTotal={fixosTotal} salarioRef={salarioRef} metaAporte={metaAporte} livreMes={livreMes} diaADia={diaADia} extras={extras} extrasTotal={extrasTotal} fixosNoMes={fixosNoMes} naoEhExtra={naoEhExtra} ignorarFixo={ignorarFixo} />}
         {page === "investimentos" && <Investimentos investBank={investBank} investCfg={investCfg} setInvestCfg={setInvestCfg} manuais={manuais} totalManuais={totalManuais} totalInvestido={totalInvestido} totalInvestimento={totalInvestimento} metaAporte={metaAporte} diaAporte={diaAporte} masked={masked} chartData={chartData} MONTHS={MONTHS} month={month} setForm={setForm} setModal={setModal} emptyForm={emptyForm} showToast={showToast} />}
         {page === "lancamentos" && <Lancamentos monthTx={monthTx} masked={masked} deleteTx={deleteTx} openEdit={openEdit} />}
         {page === "recorrentes" && <Recorrentes recurrings={recurrings} deleteRecurring={deleteRecurring} openEditRecurring={openEditRecurring} masked={masked} />}
@@ -978,7 +987,7 @@ function BarChart({ data }) {
 }
 
 // ─── pages ─────────────────────────────────────────────────────────────────
-function Dashboard({ totalReceita, totalDespesa, totalInvestimento, saldoGeral, saldoMensal, accounts, topGastos, gastosPorCat, maxCat, masked, setModal, setForm, emptyForm, comparativo, chartData, monthTx, month, MONTHS, lembretes, dismissReminder, removeReminder, patrimonio, totalInvestido, fixos, fixosTotal, salarioRef, metaAporte, livreMes, variavelMes, viagemMes, ignorarFixo }) {
+function Dashboard({ totalReceita, totalDespesa, totalInvestimento, saldoGeral, saldoMensal, accounts, topGastos, gastosPorCat, maxCat, masked, setModal, setForm, emptyForm, comparativo, chartData, monthTx, month, MONTHS, lembretes, dismissReminder, removeReminder, patrimonio, totalInvestido, fixos, fixosTotal, salarioRef, metaAporte, livreMes, diaADia, extras, extrasTotal, fixosNoMes, naoEhExtra, ignorarFixo }) {
   const isMob = typeof window!=="undefined" && window.innerWidth<768;
   return (
     <div style={{ animation:"fadeUp .4s ease",display:"flex",flexDirection:"column",gap:20 }}>
@@ -1002,16 +1011,17 @@ function Dashboard({ totalReceita, totalDespesa, totalInvestimento, saldoGeral, 
         <SCard title="Receitas do mês" value={masked(totalReceita)} color="#16a34a" bg="#f0fdf4" />
         <SCard title="Despesas do mês" value={masked(totalDespesa)} color="#dc2626" bg="#fef2f2" />
         <SCard title="Aporte do mês" value={masked(totalInvestimento)} color="#7c3aed" bg="#f5f3ff" />
-        <SCard title="Sobrou no mês" value={masked(saldoMensal)} color={saldoMensal>=0?"#15803d":"#dc2626"} bg="#fff" />
+        <SCard title="Resultado do mês" value={masked(saldoMensal)} color={saldoMensal>=0?"#15803d":"#dc2626"} bg="#fff" />
       </div>
 
       {/* a conta que importa pra decidir uma compra: o que sobra depois do fixo e do aporte */}
       <Card>
-        <SectionTitle color="#0f766e">Quanto dá pra gastar no mês</SectionTitle>
+        <SectionTitle color="#0f766e">{MONTHS[month]} em 5 linhas</SectionTitle>
         {[
-          ["Salário", salarioRef, "#16a34a", "+"],
-          [`Gastos fixos (${fixos.length})`, fixosTotal, "#dc2626", "−"],
-          ["Meta de aporte", metaAporte, "#7c3aed", "−"],
+          ["Entrou", totalReceita, "#16a34a", "+"],
+          [`Gastos fixos (${fixos.length})`, fixosNoMes, "#dc2626", "−"],
+          ["Dia a dia", diaADia, "#dc2626", "−"],
+          [`Extras pontuais (${extras.length})`, extrasTotal, "#d97706", "−"],
         ].map(([rotulo, v, cor, sinal]) => (
           <div key={rotulo} style={{ display:"flex",justifyContent:"space-between",padding:"6px 0",fontSize:14 }}>
             <span style={{ color:"#555" }}>{rotulo}</span>
@@ -1019,21 +1029,48 @@ function Dashboard({ totalReceita, totalDespesa, totalInvestimento, saldoGeral, 
           </div>
         ))}
         <div style={{ display:"flex",justifyContent:"space-between",padding:"10px 0 4px",marginTop:4,borderTop:"1px solid #e5e7eb",fontSize:15,fontWeight:700 }}>
-          <span>Livre para gastar</span>
-          <span style={{ color:livreMes>=0?"#0f766e":"#dc2626",fontFamily:"'DM Mono',monospace" }}>{masked(livreMes)}</span>
+          <span>Resultado do mês</span>
+          <span style={{ color:saldoMensal>=0?"#0f766e":"#dc2626",fontFamily:"'DM Mono',monospace" }}>{masked(saldoMensal)}</span>
         </div>
-        <div style={{ margin:"14px 0 6px",height:10,background:"#f3f4f6",borderRadius:99,overflow:"hidden" }}>
-          <div style={{ width:`${livreMes>0?Math.min(100,(variavelMes/livreMes)*100):100}%`,height:"100%",background:variavelMes>livreMes?"#dc2626":"#0f766e",transition:"width .4s" }} />
-        </div>
-        <p style={{ margin:0,fontSize:13,color:"#666" }}>
-          Gasto variável até agora: <b>{masked(variavelMes)}</b> ·{" "}
-          {variavelMes <= livreMes ? `ainda cabem ${masked(livreMes - variavelMes)}` : `passou ${masked(variavelMes - livreMes)} do livre`}
+        <p style={{ margin:"8px 0 0",fontSize:13,color:"#666" }}>
+          {saldoMensal >= 0
+            ? `Entrou mais do que saiu: ${masked(saldoMensal)} foram pra reserva.`
+            : `Saiu ${masked(-saldoMensal)} a mais do que entrou. Esse dinheiro veio da reserva que já estava na conta — o patrimônio diminui, mas não virou dívida.`}
         </p>
-        {viagemMes > 0 && (
-          <p style={{ margin:"6px 0 0",fontSize:13,color:"#666" }}>
-            ✈️ Viagem este mês: <b>{masked(viagemMes)}</b> — fora do livre, é gasto planejado.
-          </p>
+
+        {extras.length > 0 && (
+          <details style={{ marginTop:12 }}>
+            <summary style={{ cursor:"pointer",fontSize:13,color:"#d97706",fontWeight:600 }}>Ver extras pontuais</summary>
+            {extras.map((t) => (
+              <div key={t.id} style={{ display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,padding:"8px 0",borderBottom:"1px solid #f3f4f6" }}>
+                <span style={{ fontSize:13,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{ICONS[t.category]||"📌"} {t.desc}</span>
+                <div style={{ display:"flex",alignItems:"center",gap:6,flexShrink:0 }}>
+                  <span style={{ fontSize:13,fontWeight:600,fontFamily:"'DM Mono',monospace" }}>{masked(t.value)}</span>
+                  <button onClick={() => naoEhExtra(t.id)} title="Não é extra, é do dia a dia" style={iconBtn}>✕</button>
+                </div>
+              </div>
+            ))}
+            <p style={{ margin:"8px 0 0",fontSize:11,color:"#999" }}>
+              Extra = gasto acima de R$ 500 que não é fixo, ou qualquer lançamento de Viagem. ✕ joga pro dia a dia.
+            </p>
+          </details>
         )}
+
+        <div style={{ marginTop:16,paddingTop:14,borderTop:"1px solid #e5e7eb" }}>
+          <div style={{ display:"flex",justifyContent:"space-between",fontSize:14,fontWeight:700 }}>
+            <span>Livre pro dia a dia</span>
+            <span style={{ color:livreMes>=0?"#0f766e":"#dc2626",fontFamily:"'DM Mono',monospace" }}>{masked(livreMes)}</span>
+          </div>
+          <p style={{ margin:"2px 0 10px",fontSize:11,color:"#999" }}>salário − gastos fixos − meta de aporte, sem contar os extras</p>
+          <div style={{ height:10,background:"#f3f4f6",borderRadius:99,overflow:"hidden" }}>
+            <div style={{ width:`${livreMes>0?Math.min(100,(diaADia/livreMes)*100):100}%`,height:"100%",background:diaADia>livreMes?"#dc2626":"#0f766e",transition:"width .4s" }} />
+          </div>
+          <p style={{ margin:"6px 0 0",fontSize:13,color:"#666" }}>
+            Dia a dia até agora: <b>{masked(diaADia)}</b> ·{" "}
+            {diaADia <= livreMes ? `ainda cabem ${masked(livreMes - diaADia)}` : `passou ${masked(diaADia - livreMes)}`}
+          </p>
+        </div>
+
         <details style={{ marginTop:12 }}>
           <summary style={{ cursor:"pointer",fontSize:13,color:"#0f766e",fontWeight:600 }}>Ver gastos fixos</summary>
           {fixos.map((f) => (
