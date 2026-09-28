@@ -67,6 +67,9 @@ export default function App() {
   // fixos marcados na mão: o detector precisa de 2-3 meses de histórico, isso
   // salva quem acabou de começar do zero (ou mudou de aluguel esse mês)
   const [fixosManuais, setFixosManuais] = useFirestoreData(user?.uid, "fixosManuais", {});
+  // lembretes avulsos (dentista, IPVA...): não são lançamento, então não entram
+  // na conta do mês — quem entra é a despesa de verdade quando cai no extrato
+  const [lembretesCfg, setLembretesCfg] = useFirestoreData(user?.uid, "lembretes", []);
   const [page, setPage]                 = useState("dashboard");
   const [month, setMonth]               = useState(TODAY.getMonth());
   const [year]                          = useState(TODAY.getFullYear());
@@ -334,15 +337,22 @@ export default function App() {
     showToast("Conta adicionada! 🏦");
   };
 
-  const dismissReminder = (id) => {
+  const dismissReminder = (id, origem) => {
     const currentYM = `${year}-${String(month + 1).padStart(2, "0")}`;
-    setTransactions((prev) => prev.map((t) => t.id === id ? { ...t, reminderPaidMonth: currentYM } : t));
+    if (origem === "lista") setLembretesCfg((prev) => prev.map((l) => l.id === id ? { ...l, paidMonth: currentYM } : l));
+    else setTransactions((prev) => prev.map((t) => t.id === id ? { ...t, reminderPaidMonth: currentYM } : t));
     showToast("Marcado como pago ✓");
   };
 
+  const addLembrete = (desc, day, category, value) => {
+    setLembretesCfg((prev) => [...prev, { id: `lem-${Date.now()}`, desc, day: String(day), category: category || "Outros", value: value || 0, paidMonth: "" }]);
+    showToast("Lembrete criado 🔔");
+  };
+
   // tira o lembrete de vez (o lançamento continua existindo)
-  const removeReminder = (id) => {
-    setTransactions((prev) => prev.map((t) => t.id === id ? { ...t, reminderDay: "", reminderPaidMonth: "" } : t));
+  const removeReminder = (id, origem) => {
+    if (origem === "lista") setLembretesCfg((prev) => prev.filter((l) => l.id !== id));
+    else setTransactions((prev) => prev.map((t) => t.id === id ? { ...t, reminderDay: "", reminderPaidMonth: "" } : t));
     showToast("Lembrete removido");
   };
 
@@ -492,18 +502,22 @@ export default function App() {
   const palavras = (s) => new Set(normalizeDesc(s).split(" ").filter((p) => p.length >= 4));
   const jaPagoNoExtrato = (lembrete) => {
     const alvo = palavras(lembrete.desc);
+    if (alvo.size === 0) return false;
     return monthTx.some((t) =>
       t.id !== lembrete.id &&
       t.type === "despesa" &&
-      Math.abs(t.value - lembrete.value) < 0.01 &&
+      (!lembrete.value || Math.abs(t.value - lembrete.value) < 0.01) &&
       [...palavras(t.desc)].some((p) => alvo.has(p))
     );
   };
 
-  const lembretes = transactions
-    .filter((t) => t.reminderDay && t.reminderPaidMonth !== currentYM && !jaPagoNoExtrato(t))
+  const lembretes = [
+    ...lembretesCfg.map((l) => ({ ...l, origem: "lista" })),
+    ...transactions.filter((t) => t.reminderDay).map((t) => ({ id: t.id, desc: t.desc, day: t.reminderDay, category: t.category, value: t.value, paidMonth: t.reminderPaidMonth, origem: "lancamento" })),
+  ]
+    .filter((t) => t.paidMonth !== currentYM && !jaPagoNoExtrato(t))
     .map((t) => {
-      const reminderDate = `${year}-${String(month + 1).padStart(2, "0")}-${String(t.reminderDay).padStart(2, "0")}`;
+      const reminderDate = `${year}-${String(month + 1).padStart(2, "0")}-${String(t.day).padStart(2, "0")}`;
       const diff = Math.ceil((new Date(reminderDate + "T12:00:00") - new Date(todayStr + "T12:00:00")) / 86400000);
       return { ...t, diff, reminderDate };
     })
@@ -575,7 +589,7 @@ export default function App() {
             <button onClick={() => setHideValues(!hideValues)} style={{ ...navBtnStyle, marginLeft: 6 }} title="Ocultar valores">{hideValues ? "👁️" : "🙈"}</button>
             <div style={{ position: "relative", marginLeft: 2 }}>
               <button onClick={() => setPage("dashboard")} style={{ ...navBtnStyle }} title="Lembretes">🔔</button>
-              {lembretes.length > 0 && (
+              {(
                 <span style={{ position: "absolute", top: -5, right: -5, background: lembretes.some((l) => l.diff <= 0) ? "#dc2626" : "#f59e0b", color: "#fff", borderRadius: "50%", width: 17, height: 17, fontSize: 10, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}>
                   {lembretes.length}
                 </span>
@@ -628,7 +642,7 @@ export default function App() {
           </div>
         )}
 
-        {page === "dashboard"   && <Dashboard totalReceita={totalReceita} totalDespesa={totalDespesa} totalInvestimento={totalInvestimento} saldoGeral={saldoGeral} saldoMensal={saldoMensal} accounts={accounts} topGastos={topGastos} gastosPorCat={gastosPorCat} maxCat={maxCat} masked={masked} setModal={setModal} setForm={setForm} emptyForm={emptyForm} comparativo={comparativo} chartData={chartData} monthTx={monthTx} month={month} MONTHS={MONTHS} lembretes={lembretes} dismissReminder={dismissReminder} removeReminder={removeReminder} patrimonio={patrimonio} totalInvestido={totalInvestido} fixos={fixos} fixosTotal={fixosTotal} salarioRef={salarioRef} metaAporte={metaAporte} livreMes={livreMes} diaADia={diaADia} extras={extras} extrasTotal={extrasTotal} fixosNoMes={fixosNoMes} naoEhExtra={naoEhExtra} ignorarFixo={ignorarFixo} marcarFixo={marcarFixo} />}
+        {page === "dashboard"   && <Dashboard totalReceita={totalReceita} totalDespesa={totalDespesa} totalInvestimento={totalInvestimento} saldoGeral={saldoGeral} saldoMensal={saldoMensal} accounts={accounts} topGastos={topGastos} gastosPorCat={gastosPorCat} maxCat={maxCat} masked={masked} setModal={setModal} setForm={setForm} emptyForm={emptyForm} comparativo={comparativo} chartData={chartData} monthTx={monthTx} month={month} MONTHS={MONTHS} lembretes={lembretes} dismissReminder={dismissReminder} removeReminder={removeReminder} addLembrete={addLembrete} patrimonio={patrimonio} totalInvestido={totalInvestido} fixos={fixos} fixosTotal={fixosTotal} salarioRef={salarioRef} metaAporte={metaAporte} livreMes={livreMes} diaADia={diaADia} extras={extras} extrasTotal={extrasTotal} fixosNoMes={fixosNoMes} naoEhExtra={naoEhExtra} ignorarFixo={ignorarFixo} marcarFixo={marcarFixo} />}
         {page === "investimentos" && <Investimentos investBank={investBank} investCfg={investCfg} setInvestCfg={setInvestCfg} manuais={manuais} totalManuais={totalManuais} totalInvestido={totalInvestido} totalInvestimento={totalInvestimento} metaAporte={metaAporte} diaAporte={diaAporte} masked={masked} chartData={chartData} MONTHS={MONTHS} month={month} setForm={setForm} setModal={setModal} emptyForm={emptyForm} showToast={showToast} />}
         {page === "lancamentos" && <Lancamentos monthTx={monthTx} masked={masked} deleteTx={deleteTx} openEdit={openEdit} />}
         {page === "recorrentes" && <Recorrentes recurrings={recurrings} deleteRecurring={deleteRecurring} openEditRecurring={openEditRecurring} masked={masked} />}
@@ -999,7 +1013,7 @@ function BarChart({ data }) {
 }
 
 // ─── pages ─────────────────────────────────────────────────────────────────
-function Dashboard({ totalReceita, totalDespesa, totalInvestimento, saldoGeral, saldoMensal, accounts, topGastos, gastosPorCat, maxCat, masked, setModal, setForm, emptyForm, comparativo, chartData, monthTx, month, MONTHS, lembretes, dismissReminder, removeReminder, patrimonio, totalInvestido, fixos, fixosTotal, salarioRef, metaAporte, livreMes, diaADia, extras, extrasTotal, fixosNoMes, naoEhExtra, ignorarFixo, marcarFixo }) {
+function Dashboard({ totalReceita, totalDespesa, totalInvestimento, saldoGeral, saldoMensal, accounts, topGastos, gastosPorCat, maxCat, masked, setModal, setForm, emptyForm, comparativo, chartData, monthTx, month, MONTHS, lembretes, dismissReminder, removeReminder, addLembrete, patrimonio, totalInvestido, fixos, fixosTotal, salarioRef, metaAporte, livreMes, diaADia, extras, extrasTotal, fixosNoMes, naoEhExtra, ignorarFixo, marcarFixo }) {
   const isMob = typeof window!=="undefined" && window.innerWidth<768;
   return (
     <div style={{ animation:"fadeUp .4s ease",display:"flex",flexDirection:"column",gap:20 }}>
@@ -1174,19 +1188,23 @@ function Dashboard({ totalReceita, totalDespesa, totalInvestimento, saldoGeral, 
                     <span style={{ fontSize:20 }}>{ICONS[t.category]||"📌"}</span>
                     <div>
                       <p style={{ margin:0,fontWeight:600,fontSize:14 }}>{t.desc}</p>
-                      <p style={{ margin:0,fontSize:11,color:"#aaa" }}>{t.category} · Vence dia {t.reminderDay} todo mês</p>
+                      <p style={{ margin:0,fontSize:11,color:"#aaa" }}>{t.category} · Vence dia {t.day} todo mês</p>
                     </div>
                   </div>
                   <div style={{ display:"flex",alignItems:"center",gap:10 }}>
                     <span style={{ fontSize:12,fontWeight:700,padding:"3px 10px",borderRadius:20,background:color,color:"#fff" }}>{label}</span>
-                    <span style={{ fontWeight:700,fontFamily:"'DM Mono',monospace",fontSize:13,color }}>{fmt(t.value)}</span>
-                    <button onClick={() => dismissReminder(t.id)} title="Marcar como pago" style={{ background:"#f0fdf4",border:"1px solid #86efac",borderRadius:8,cursor:"pointer",fontSize:13,padding:"4px 10px",color:"#15803d",fontWeight:600,fontFamily:"'DM Sans',sans-serif" }}>✓ Pago</button>
-                    <button onClick={() => removeReminder(t.id)} title="Não pago mais isso — remover lembrete" style={iconBtn}>✕</button>
+                    {t.value > 0 && <span style={{ fontWeight:700,fontFamily:"'DM Mono',monospace",fontSize:13,color }}>{fmt(t.value)}</span>}
+                    <button onClick={() => dismissReminder(t.id, t.origem)} title="Marcar como pago" style={{ background:"#f0fdf4",border:"1px solid #86efac",borderRadius:8,cursor:"pointer",fontSize:13,padding:"4px 10px",color:"#15803d",fontWeight:600,fontFamily:"'DM Sans',sans-serif" }}>✓ Pago</button>
+                    <button onClick={() => removeReminder(t.id, t.origem)} title="Não pago mais isso — remover lembrete" style={iconBtn}>✕</button>
                   </div>
                 </div>
               );
             })}
+            {lembretes.length === 0 && (
+              <p style={{ margin:0,fontSize:13,color:"#bbb",textAlign:"center",padding:"6px 0" }}>Nenhum lembrete pendente este mês.</p>
+            )}
           </div>
+          <NovoLembrete addLembrete={addLembrete} />
         </Card>
       )}
 
@@ -1213,6 +1231,41 @@ function Dashboard({ totalReceita, totalDespesa, totalInvestimento, saldoGeral, 
           </div>
         </Card>
       )}
+    </div>
+  );
+}
+
+function NovoLembrete({ addLembrete }) {
+  const [aberto, setAberto] = useState(false);
+  const [desc, setDesc]     = useState("");
+  const [dia, setDia]       = useState("");
+  const [cat, setCat]       = useState("Outros");
+  const [valor, setValor]   = useState("");
+  const campo = { padding:"9px 11px",border:"1px solid #e5e7eb",borderRadius:8,fontSize:14,fontFamily:"'DM Sans',sans-serif",boxSizing:"border-box" };
+
+  if (!aberto) return (
+    <button onClick={() => setAberto(true)} style={{ marginTop:12,background:"none",border:"none",cursor:"pointer",fontSize:13,color:"#d97706",fontWeight:600,fontFamily:"'DM Sans',sans-serif",padding:0 }}>
+      + Novo lembrete
+    </button>
+  );
+
+  const salvar = () => {
+    const d = parseInt(dia);
+    if (!desc.trim() || !d || d < 1 || d > 31) return;
+    addLembrete(desc.trim(), d, cat, parseFloat(String(valor).replace(",", ".")) || 0);
+    setDesc(""); setDia(""); setValor(""); setCat("Outros"); setAberto(false);
+  };
+
+  return (
+    <div style={{ marginTop:14,paddingTop:14,borderTop:"1px solid #f3f4f6",display:"flex",gap:8,flexWrap:"wrap" }}>
+      <input placeholder="Ex: Dentista" value={desc} onChange={(e) => setDesc(e.target.value)} style={{ ...campo,flex:2,minWidth:140 }} />
+      <input placeholder="Dia" type="number" min="1" max="31" value={dia} onChange={(e) => setDia(e.target.value)} style={{ ...campo,width:70 }} />
+      <select value={cat} onChange={(e) => setCat(e.target.value)} style={{ ...campo,minWidth:120 }}>
+        {CATEGORIES.despesa.map((c) => <option key={c}>{c}</option>)}
+      </select>
+      <input placeholder="Valor (opcional)" value={valor} onChange={(e) => setValor(e.target.value)} style={{ ...campo,width:130 }} />
+      <button onClick={salvar} style={{ padding:"9px 16px",background:"#f59e0b",color:"#fff",border:"none",borderRadius:8,cursor:"pointer",fontWeight:600,fontSize:13,fontFamily:"'DM Sans',sans-serif" }}>Criar</button>
+      <button onClick={() => setAberto(false)} style={{ padding:"9px 12px",background:"transparent",border:"1px solid #e5e7eb",borderRadius:8,cursor:"pointer",fontSize:13,color:"#888",fontFamily:"'DM Sans',sans-serif" }}>Cancelar</button>
     </div>
   );
 }
