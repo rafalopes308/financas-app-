@@ -344,8 +344,14 @@ export default function App() {
     showToast("Marcado como pago ✓");
   };
 
-  const addLembrete = (desc, day, category, value) => {
-    setLembretesCfg((prev) => [...prev, { id: `lem-${Date.now()}`, desc, day: String(day), category: category || "Outros", value: value || 0, paidMonth: "" }]);
+  const addLembrete = (desc, day, category, value, parcelas) => {
+    // com parcelas, guarda o último mês: depois dele o lembrete some sozinho
+    let ate = "";
+    if (parcelas > 0) {
+      const fim = new Date(year, month + parcelas - 1, 1);
+      ate = `${fim.getFullYear()}-${String(fim.getMonth() + 1).padStart(2, "0")}`;
+    }
+    setLembretesCfg((prev) => [...prev, { id: `lem-${Date.now()}`, desc, day: String(day), category: category || "Outros", value: value || 0, ate, paidMonth: "" }]);
     showToast("Lembrete criado 🔔");
   };
 
@@ -506,8 +512,9 @@ export default function App() {
     return monthTx.some((t) =>
       t.id !== lembrete.id &&
       t.type === "despesa" &&
-      (!lembrete.value || Math.abs(t.value - lembrete.value) < 0.01) &&
-      [...palavras(t.desc)].some((p) => alvo.has(p))
+      (lembrete.value > 0
+        ? Math.abs(t.value - lembrete.value) < 0.01
+        : [...palavras(t.desc)].some((p) => alvo.has(p)))
     );
   };
 
@@ -515,7 +522,7 @@ export default function App() {
     ...lembretesCfg.map((l) => ({ ...l, origem: "lista" })),
     ...transactions.filter((t) => t.reminderDay).map((t) => ({ id: t.id, desc: t.desc, day: t.reminderDay, category: t.category, value: t.value, paidMonth: t.reminderPaidMonth, origem: "lancamento" })),
   ]
-    .filter((t) => t.paidMonth !== currentYM && !jaPagoNoExtrato(t))
+    .filter((t) => t.paidMonth !== currentYM && !(t.ate && currentYM > t.ate) && !jaPagoNoExtrato(t))
     .map((t) => {
       const reminderDate = `${year}-${String(month + 1).padStart(2, "0")}-${String(t.day).padStart(2, "0")}`;
       const diff = Math.ceil((new Date(reminderDate + "T12:00:00") - new Date(todayStr + "T12:00:00")) / 86400000);
@@ -1188,7 +1195,7 @@ function Dashboard({ totalReceita, totalDespesa, totalInvestimento, saldoGeral, 
                     <span style={{ fontSize:20 }}>{ICONS[t.category]||"📌"}</span>
                     <div>
                       <p style={{ margin:0,fontWeight:600,fontSize:14 }}>{t.desc}</p>
-                      <p style={{ margin:0,fontSize:11,color:"#aaa" }}>{t.category} · Vence dia {t.day} todo mês</p>
+                      <p style={{ margin:0,fontSize:11,color:"#aaa" }}>{t.category} · Vence dia {t.day} todo mês{t.ate ? ` · até ${t.ate.slice(5)}/${t.ate.slice(2,4)}` : ""}</p>
                     </div>
                   </div>
                   <div style={{ display:"flex",alignItems:"center",gap:10 }}>
@@ -1241,6 +1248,7 @@ function NovoLembrete({ addLembrete }) {
   const [dia, setDia]       = useState("");
   const [cat, setCat]       = useState("Outros");
   const [valor, setValor]   = useState("");
+  const [meses, setMeses]   = useState("");
   const campo = { padding:"9px 11px",border:"1px solid #e5e7eb",borderRadius:8,fontSize:14,fontFamily:"'DM Sans',sans-serif",boxSizing:"border-box" };
 
   if (!aberto) return (
@@ -1252,8 +1260,8 @@ function NovoLembrete({ addLembrete }) {
   const salvar = () => {
     const d = parseInt(dia);
     if (!desc.trim() || !d || d < 1 || d > 31) return;
-    addLembrete(desc.trim(), d, cat, parseFloat(String(valor).replace(",", ".")) || 0);
-    setDesc(""); setDia(""); setValor(""); setCat("Outros"); setAberto(false);
+    addLembrete(desc.trim(), d, cat, parseFloat(String(valor).replace(",", ".")) || 0, parseInt(meses) || 0);
+    setDesc(""); setDia(""); setValor(""); setMeses(""); setCat("Outros"); setAberto(false);
   };
 
   return (
@@ -1264,6 +1272,7 @@ function NovoLembrete({ addLembrete }) {
         {CATEGORIES.despesa.map((c) => <option key={c}>{c}</option>)}
       </select>
       <input placeholder="Valor (opcional)" value={valor} onChange={(e) => setValor(e.target.value)} style={{ ...campo,width:130 }} />
+      <input placeholder="Nº parcelas" type="number" min="1" value={meses} onChange={(e) => setMeses(e.target.value)} style={{ ...campo,width:110 }} title="Deixe vazio se for pra sempre" />
       <button onClick={salvar} style={{ padding:"9px 16px",background:"#f59e0b",color:"#fff",border:"none",borderRadius:8,cursor:"pointer",fontWeight:600,fontSize:13,fontFamily:"'DM Sans',sans-serif" }}>Criar</button>
       <button onClick={() => setAberto(false)} style={{ padding:"9px 12px",background:"transparent",border:"1px solid #e5e7eb",borderRadius:8,cursor:"pointer",fontSize:13,color:"#888",fontFamily:"'DM Sans',sans-serif" }}>Cancelar</button>
     </div>
