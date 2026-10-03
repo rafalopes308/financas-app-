@@ -149,13 +149,18 @@ export default async function handler(req, res) {
     const mapRef = db.doc(`users/${uid}/data/categoryMap`);
     const accRef = db.doc(`users/${uid}/data/accounts`);
 
-    const [txSnap, mapSnap, accSnap] = await Promise.all([txRef.get(), mapRef.get(), accRef.get()]);
+    // data de corte: sem isso o sync reimporta os meses que o usuário apagou,
+    // porque eles saíram do Firestore mas continuam dentro da janela de 45 dias
+    const cfgRef = db.doc(`users/${uid}/data/syncConfig`);
+    const [txSnap, mapSnap, accSnap, cfgSnap] = await Promise.all([txRef.get(), mapRef.get(), accRef.get(), cfgRef.get()]);
+    const desde = cfgSnap.exists ? (cfgSnap.data().value || {}).desde || "" : "";
     const existing = txSnap.exists ? txSnap.data().value || [] : [];
     const categoryMap = mapSnap.exists ? mapSnap.data().value || {} : {};
     const knownFitids = new Set(existing.map((t) => t.fitid).filter(Boolean));
 
     const newTxs = incoming
       .filter((t) => !knownFitids.has(t.fitid))
+      .filter((t) => !desde || t.date >= desde)
       .map((t) => ({
         id: t.fitid,
         type: t.type,
@@ -201,6 +206,7 @@ export default async function handler(req, res) {
       ok: true,
       fetched: incoming.length,
       imported: newTxs.length,
+      desde: desde || "sem corte",
       bankBalance,
       refreshStatus,
     });
