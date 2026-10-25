@@ -816,7 +816,7 @@ export default function App() {
               {pendentes.map((p) => (
                 <div key={p.chave} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 4px", borderBottom: "1px solid #f3f4f6" }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ margin: 0, fontSize: 13, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.desc}</p>
+                    <p style={{ margin: 0, fontSize: 13, fontWeight: 500, overflowWrap: "anywhere" }}>{p.desc}</p>
                     <p style={{ margin: 0, fontSize: 11, color: "#999" }}>
                       {p.qtd > 1 ? `${p.qtd} lançamentos · ` : ""}{fmt(p.total)}
                     </p>
@@ -845,7 +845,7 @@ export default function App() {
                 <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 8px", borderBottom: "1px solid #f3f4f6", opacity: t.selected ? 1 : 0.5 }}>
                   <input type="checkbox" checked={t.selected} onChange={(e) => setImporting(arr => arr.map((x, i) => i === idx ? { ...x, selected: e.target.checked } : x))} style={{ width: 18, height: 18, accentColor: "#22c55e", flexShrink: 0 }} />
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ margin: 0, fontSize: 13, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.desc}</p>
+                    <p style={{ margin: 0, fontSize: 13, fontWeight: 600, overflowWrap: "anywhere" }}>{t.desc}</p>
                     <div style={{ display: "flex", gap: 6, marginTop: 4, alignItems: "center", flexWrap: "wrap" }}>
                       <span style={{ fontSize: 11, color: "#888" }}>{new Date(t.date+"T12:00:00").toLocaleDateString("pt-BR")}</span>
                       <select value={t.type} onChange={(e) => setImporting(arr => arr.map((x, i) => i === idx ? { ...x, type: e.target.value, category: suggestCategory(x.desc, e.target.value) } : x))} style={{ fontSize: 11, padding: "2px 4px", border: "1px solid #e5e7eb", borderRadius: 4 }}>
@@ -1082,7 +1082,7 @@ function Dashboard({ totalReceita, totalDespesa, totalInvestimento, saldoGeral, 
             <summary style={{ cursor:"pointer",fontSize:13,color:"#d97706",fontWeight:600 }}>Ver extras pontuais</summary>
             {extras.map((t) => (
               <div key={t.id} style={{ display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,padding:"8px 0",borderBottom:"1px solid #f3f4f6" }}>
-                <span style={{ fontSize:13,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{ICONS[t.category]||"📌"} {t.desc}</span>
+                <span style={{ fontSize:13,minWidth:0,overflowWrap: "anywhere" }}>{ICONS[t.category]||"📌"} {t.desc}</span>
                 <div style={{ display:"flex",alignItems:"center",gap:6,flexShrink:0 }}>
                   <span style={{ fontSize:13,fontWeight:600,fontFamily:"'DM Mono',monospace" }}>{masked(t.value)}</span>
                   <button onClick={() => marcarFixo(normalizeDesc(t.desc))} title="É gasto fixo, todo mês" style={iconBtn}>📌</button>
@@ -1115,7 +1115,7 @@ function Dashboard({ totalReceita, totalDespesa, totalInvestimento, saldoGeral, 
           <summary style={{ cursor:"pointer",fontSize:13,color:"#0f766e",fontWeight:600 }}>Ver gastos fixos</summary>
           {fixos.map((f) => (
             <div key={f.chave} style={{ display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,padding:"8px 0",borderBottom:"1px solid #f3f4f6" }}>
-              <span style={{ fontSize:13,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{ICONS[f.category]||"📌"} {f.desc}</span>
+              <span style={{ fontSize:13,minWidth:0,overflowWrap: "anywhere" }}>{ICONS[f.category]||"📌"} {f.desc}</span>
               <div style={{ display:"flex",alignItems:"center",gap:6,flexShrink:0 }}>
                 <span style={{ fontSize:13,fontWeight:600,fontFamily:"'DM Mono',monospace" }}>{masked(f.valor)}</span>
                 <button onClick={() => ignorarFixo(f.chave)} title="Não é gasto fixo" style={iconBtn}>✕</button>
@@ -1433,7 +1433,7 @@ function Investimentos({ investBank, investCfg, setInvestCfg, manuais, totalManu
           : itensBanco.map((i, idx) => (
             <div key={idx} style={{ display:"flex",justifyContent:"space-between",alignItems:"center",padding:"9px 0",borderBottom:"1px solid #f3f4f6",gap:10 }}>
               <div style={{ minWidth:0 }}>
-                <p style={{ margin:0,fontSize:14,fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{i.name}</p>
+                <p style={{ margin:0,fontSize:14,fontWeight:500,overflowWrap: "anywhere" }}>{i.name}</p>
                 <p style={{ margin:0,fontSize:12,color:"#999" }}>{i.type}</p>
               </div>
               <span style={{ fontSize:14,fontWeight:600,whiteSpace:"nowrap" }}>{masked(Number(i.value || 0))}</span>
