@@ -913,10 +913,13 @@ function SectionTitle({ color="#22c55e", children }) {
 // ─── summary card ──────────────────────────────────────────────────────────
 function SCard({ title, value, color, bg }) {
   const mob = typeof window !== "undefined" && window.innerWidth < 768;
+  // número de dinheiro nunca quebra no meio: valor comprido ganha fonte menor
+  const longo = String(value).length > 12;
+  const fonte = mob ? (longo ? 15 : 17) : (longo ? 18 : 20);
   return (
     <div style={{ background:bg,borderRadius:16,padding:mob?"14px 14px":"18px 20px",minWidth:0 }}>
       <p style={{ margin:"0 0 6px",fontSize:mob?10:11,color:"#888",fontWeight:600,textTransform:"uppercase",letterSpacing:.8 }}>{title}</p>
-      <p style={{ margin:0,fontSize:mob?17:22,fontWeight:700,color,fontFamily:"'DM Mono',monospace",overflowWrap:"anywhere" }}>{value}</p>
+      <p style={{ margin:0,fontSize:fonte,fontWeight:700,color,fontFamily:"'DM Mono',monospace",whiteSpace:"nowrap" }}>{value}</p>
     </div>
   );
 }
@@ -1570,7 +1573,7 @@ function Relatorios({ monthTx, totalReceita, totalDespesa, totalInvestimento, ma
           ].map((item) => (
             <div key={item.label} style={{ minWidth:0,textAlign:"center",padding:14,background:item.bg,borderRadius:12 }}>
               <p style={{ margin:"0 0 6px",fontSize:12,color:"#888" }}>{item.label}</p>
-              <p style={{ margin:0,fontSize:16,fontWeight:700,color:item.color,fontFamily:"'DM Mono',monospace",overflowWrap:"anywhere" }}>{masked(item.val)}</p>
+              <p style={{ margin:0,fontSize:16,fontWeight:700,color:item.color,fontFamily:"'DM Mono',monospace",whiteSpace:"nowrap" }}>{masked(item.val)}</p>
             </div>
           ))}
         </div>
