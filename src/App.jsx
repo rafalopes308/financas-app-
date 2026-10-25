@@ -1561,16 +1561,16 @@ function Relatorios({ monthTx, totalReceita, totalDespesa, totalInvestimento, ma
 
       <Card>
         <SectionTitle color="#0891b2">Resumo do Mês</SectionTitle>
-        <div style={{ display:"flex",gap:16 }}>
+        <div style={{ display:"grid",gridTemplateColumns:(typeof window!=="undefined"&&window.innerWidth<768)?"repeat(2,minmax(0,1fr))":"repeat(4,minmax(0,1fr))",gap:(typeof window!=="undefined"&&window.innerWidth<768)?10:16 }}>
           {[
             { label:"Receitas",val:totalReceita,color:"#16a34a",bg:"#f0fdf4" },
             { label:"Despesas",val:totalDespesa,color:"#dc2626",bg:"#fef2f2" },
             { label:"Investimentos",val:totalInvestimento,color:"#7c3aed",bg:"#f5f3ff" },
             { label:"Saldo livre",val:saldo,color:saldo>=0?"#16a34a":"#dc2626",bg:saldo>=0?"#f0fdf4":"#fef2f2" },
           ].map((item) => (
-            <div key={item.label} style={{ flex:1,textAlign:"center",padding:16,background:item.bg,borderRadius:12 }}>
+            <div key={item.label} style={{ minWidth:0,textAlign:"center",padding:14,background:item.bg,borderRadius:12 }}>
               <p style={{ margin:"0 0 6px",fontSize:12,color:"#888" }}>{item.label}</p>
-              <p style={{ margin:0,fontSize:18,fontWeight:700,color:item.color,fontFamily:"'DM Mono',monospace" }}>{fmt(item.val)}</p>
+              <p style={{ margin:0,fontSize:16,fontWeight:700,color:item.color,fontFamily:"'DM Mono',monospace",overflowWrap:"anywhere" }}>{masked(item.val)}</p>
             </div>
           ))}
         </div>
