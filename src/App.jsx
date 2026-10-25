@@ -11,13 +11,13 @@ const MONTHS = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov
 const TODAY = new Date();
 
 const CATEGORIES = {
-  despesa:     ["Alimentação","Moradia","Transporte","Saúde","Lazer","Educação","Roupas","Assinaturas","Ferramentas","Esporte","Viagem","Barbeiro","Presentes","Outros"],
+  despesa:     ["Mercado","Restaurantes","Moradia","Transporte","Saúde","Lazer","Educação","Roupas","Assinaturas","Ferramentas","Esporte","Viagem","Barbeiro","Presentes","Outros"],
   receita:     ["Salário","Freelance","Aluguel recebido","Dividendos","Presente","Outros"],
   investimento:["Tesouro Direto","Ações","Fundos","Cripto","Poupança","Previdência","Outros"],
 };
 
 const ICONS = {
-  "Alimentação":"🍽️","Moradia":"🏠","Transporte":"🚗","Saúde":"💊","Lazer":"🎮",
+  "Alimentação":"🍽️","Mercado":"🛒","Restaurantes":"🍽️","Moradia":"🏠","Transporte":"🚗","Saúde":"💊","Lazer":"🎮",
   "Educação":"📚","Roupas":"👕","Assinaturas":"📱","Ferramentas":"🛠️","Esporte":"💚","Viagem":"✈️","Barbeiro":"💈","Presentes":"🎁","Salário":"💼","Freelance":"💻",
   "Aluguel recebido":"🏢","Dividendos":"💰","Presente":"🎁","Tesouro Direto":"🏛️","Ações":"📈",
   "Fundos":"🏦","Cripto":"₿","Poupança":"🐷","Previdência":"🔒","Outros":"📌",
@@ -70,6 +70,11 @@ export default function App() {
   // lembretes avulsos (dentista, IPVA...): não são lançamento, então não entram
   // na conta do mês — quem entra é a despesa de verdade quando cai no extrato
   const [lembretesCfg, setLembretesCfg] = useFirestoreData(user?.uid, "lembretes", []);
+  // tetos por categoria: barra de "quanto já foi" no mês, pro gasto que escapa sem perceber
+  const [tetos, setTetos] = useFirestoreData(user?.uid, "tetos", [
+    { id: "restaurantes", nome: "Restaurantes", categorias: ["Restaurantes"], limite: 1600 },
+    { id: "lazer",        nome: "Lazer",        categorias: ["Lazer"],        limite: 600 },
+  ]);
   const [page, setPage]                 = useState("dashboard");
   const [month, setMonth]               = useState(TODAY.getMonth());
   const [year]                          = useState(TODAY.getFullYear());
@@ -239,6 +244,17 @@ export default function App() {
   const livreMes    = salarioRef - fixosTotal - metaAporte;
   const ignorarFixo = (chave) => setFixosIgnorados((prev) => ({ ...prev, [chave]: true }));
   const marcarFixo  = (chave) => { setFixosManuais((prev) => ({ ...prev, [chave]: true })); setFixosIgnorados((prev) => { const n = { ...prev }; delete n[chave]; return n; }); };
+
+  // ── tetos do mês ───────────────────────────────────────────────────────────
+  const ehMesAtual   = month === TODAY.getMonth() && year === TODAY.getFullYear();
+  const diasNoMes    = new Date(year, month + 1, 0).getDate();
+  const tetosStatus  = tetos.map((t) => {
+    const gasto = monthTx.filter((x) => x.type === "despesa" && t.categorias.includes(x.category)).reduce((s, x) => s + x.value, 0);
+    // projeção só faz sentido no mês corrente e depois de alguns dias
+    const projecao = ehMesAtual && TODAY.getDate() >= 5 ? (gasto / TODAY.getDate()) * diasNoMes : null;
+    return { ...t, gasto, projecao };
+  });
+  const atualizarTeto = (id, limite) => setTetos((prev) => prev.map((t) => t.id === id ? { ...t, limite } : t));
 
   // Dias desde o último lançamento vindo do banco. Serve de alarme: se a conexão
   // do Open Finance cai, o app continua parecendo normal, só que mudo.
@@ -649,7 +665,7 @@ export default function App() {
           </div>
         )}
 
-        {page === "dashboard"   && <Dashboard totalReceita={totalReceita} totalDespesa={totalDespesa} totalInvestimento={totalInvestimento} saldoGeral={saldoGeral} saldoMensal={saldoMensal} accounts={accounts} topGastos={topGastos} gastosPorCat={gastosPorCat} maxCat={maxCat} masked={masked} setModal={setModal} setForm={setForm} emptyForm={emptyForm} comparativo={comparativo} chartData={chartData} monthTx={monthTx} month={month} MONTHS={MONTHS} lembretes={lembretes} dismissReminder={dismissReminder} removeReminder={removeReminder} addLembrete={addLembrete} patrimonio={patrimonio} totalInvestido={totalInvestido} fixos={fixos} fixosTotal={fixosTotal} salarioRef={salarioRef} metaAporte={metaAporte} livreMes={livreMes} diaADia={diaADia} extras={extras} extrasTotal={extrasTotal} fixosNoMes={fixosNoMes} naoEhExtra={naoEhExtra} ignorarFixo={ignorarFixo} marcarFixo={marcarFixo} />}
+        {page === "dashboard"   && <Dashboard totalReceita={totalReceita} totalDespesa={totalDespesa} totalInvestimento={totalInvestimento} saldoGeral={saldoGeral} saldoMensal={saldoMensal} accounts={accounts} topGastos={topGastos} gastosPorCat={gastosPorCat} maxCat={maxCat} masked={masked} setModal={setModal} setForm={setForm} emptyForm={emptyForm} comparativo={comparativo} chartData={chartData} monthTx={monthTx} month={month} MONTHS={MONTHS} lembretes={lembretes} dismissReminder={dismissReminder} removeReminder={removeReminder} addLembrete={addLembrete} patrimonio={patrimonio} totalInvestido={totalInvestido} fixos={fixos} fixosTotal={fixosTotal} salarioRef={salarioRef} metaAporte={metaAporte} livreMes={livreMes} diaADia={diaADia} extras={extras} extrasTotal={extrasTotal} fixosNoMes={fixosNoMes} naoEhExtra={naoEhExtra} ignorarFixo={ignorarFixo} marcarFixo={marcarFixo} tetosStatus={tetosStatus} atualizarTeto={atualizarTeto} />}
         {page === "investimentos" && <Investimentos investBank={investBank} investCfg={investCfg} setInvestCfg={setInvestCfg} manuais={manuais} totalManuais={totalManuais} totalInvestido={totalInvestido} totalInvestimento={totalInvestimento} metaAporte={metaAporte} diaAporte={diaAporte} masked={masked} chartData={chartData} MONTHS={MONTHS} month={month} setForm={setForm} setModal={setModal} emptyForm={emptyForm} showToast={showToast} />}
         {page === "lancamentos" && <Lancamentos monthTx={monthTx} masked={masked} deleteTx={deleteTx} openEdit={openEdit} />}
         {page === "recorrentes" && <Recorrentes recurrings={recurrings} deleteRecurring={deleteRecurring} openEditRecurring={openEditRecurring} masked={masked} />}
@@ -1026,7 +1042,7 @@ function BarChart({ data }) {
 }
 
 // ─── pages ─────────────────────────────────────────────────────────────────
-function Dashboard({ totalReceita, totalDespesa, totalInvestimento, saldoGeral, saldoMensal, accounts, topGastos, gastosPorCat, maxCat, masked, setModal, setForm, emptyForm, comparativo, chartData, monthTx, month, MONTHS, lembretes, dismissReminder, removeReminder, addLembrete, patrimonio, totalInvestido, fixos, fixosTotal, salarioRef, metaAporte, livreMes, diaADia, extras, extrasTotal, fixosNoMes, naoEhExtra, ignorarFixo, marcarFixo }) {
+function Dashboard({ totalReceita, totalDespesa, totalInvestimento, saldoGeral, saldoMensal, accounts, topGastos, gastosPorCat, maxCat, masked, setModal, setForm, emptyForm, comparativo, chartData, monthTx, month, MONTHS, lembretes, dismissReminder, removeReminder, addLembrete, patrimonio, totalInvestido, fixos, fixosTotal, salarioRef, metaAporte, livreMes, diaADia, extras, extrasTotal, fixosNoMes, naoEhExtra, ignorarFixo, marcarFixo, tetosStatus, atualizarTeto }) {
   const isMob = typeof window!=="undefined" && window.innerWidth<768;
   return (
     <div style={{ animation:"fadeUp .4s ease",display:"flex",flexDirection:"column",gap:20 }}>
@@ -1127,6 +1143,16 @@ function Dashboard({ totalReceita, totalDespesa, totalInvestimento, saldoGeral, 
           </p>
         </details>
       </Card>
+
+      {tetosStatus.length > 0 && (
+        <Card>
+          <SectionTitle color="#ea580c">Tetos do mês</SectionTitle>
+          <div style={{ display:"flex",flexDirection:"column",gap:16 }}>
+            {tetosStatus.map((t) => <BarraTeto key={t.id} t={t} masked={masked} atualizarTeto={atualizarTeto} />)}
+          </div>
+          <p style={{ margin:"12px 0 0",fontSize:11,color:"#999" }}>Toque no valor do teto para mudar.</p>
+        </Card>
+      )}
 
       {/* quick actions */}
       <Card>
@@ -1244,6 +1270,45 @@ function Dashboard({ totalReceita, totalDespesa, totalInvestimento, saldoGeral, 
           </div>
         </Card>
       )}
+    </div>
+  );
+}
+
+function BarraTeto({ t, masked, atualizarTeto }) {
+  const [editando, setEditando] = useState(false);
+  const [valor, setValor] = useState(String(t.limite));
+  const pct = t.limite > 0 ? (t.gasto / t.limite) * 100 : 0;
+  const cor = pct > 100 ? "#dc2626" : pct >= 80 ? "#d97706" : "#16a34a";
+  const salvar = () => {
+    const v = parseFloat(String(valor).replace(",", "."));
+    if (v > 0) atualizarTeto(t.id, v);
+    setEditando(false);
+  };
+  return (
+    <div>
+      <div style={{ display:"flex",justifyContent:"space-between",alignItems:"baseline",gap:10,marginBottom:6 }}>
+        <span style={{ fontSize:14,fontWeight:600 }}>{ICONS[t.categorias[0]] || "📌"} {t.nome}</span>
+        <span style={{ fontSize:13,fontFamily:"'DM Mono',monospace",whiteSpace:"nowrap" }}>
+          <b style={{ color:cor }}>{masked(t.gasto)}</b>
+          <span style={{ color:"#999" }}> de </span>
+          {editando ? (
+            <input autoFocus type="number" value={valor} onChange={(e) => setValor(e.target.value)}
+              onBlur={salvar} onKeyDown={(e) => e.key === "Enter" && salvar()}
+              style={{ width:80,padding:"2px 6px",border:"1px solid #e5e7eb",borderRadius:6,fontSize:13,fontFamily:"'DM Mono',monospace" }} />
+          ) : (
+            <span onClick={() => { setValor(String(t.limite)); setEditando(true); }} style={{ color:"#555",cursor:"pointer",borderBottom:"1px dashed #bbb" }}>{masked(t.limite)}</span>
+          )}
+        </span>
+      </div>
+      <div style={{ height:10,background:"#f3f4f6",borderRadius:99,overflow:"hidden" }}>
+        <div style={{ width:`${Math.min(100, pct)}%`,height:"100%",background:cor,transition:"width .4s" }} />
+      </div>
+      <p style={{ margin:"5px 0 0",fontSize:12,color:"#666" }}>
+        {pct <= 100 ? `Faltam ${masked(t.limite - t.gasto)}` : `Passou ${masked(t.gasto - t.limite)} do teto`}
+        {t.projecao !== null && t.projecao > t.limite && pct <= 100 && (
+          <span style={{ color:"#d97706" }}> · no ritmo atual, fecha o mês em {masked(t.projecao)}</span>
+        )}
+      </p>
     </div>
   );
 }

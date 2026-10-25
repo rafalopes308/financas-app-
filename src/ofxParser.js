@@ -59,7 +59,9 @@ export function suggestCategory(desc, type) {
   }
   // despesa
   // "ifd " e "dl " são prefixos que o Inter usa na fatura pra iFood e delivery
-  if (d.match(/ifood|^ifd |rappi|uber eats|restaurante|lanchonete|padaria|supermercado|mercado|hortifrut|hamburg|pizza|acai|açaí|oakberry|bar /)) return "Alimentação";
+  // mercado antes de restaurante: "supermercado e padaria" não é comer fora
+  if (d.match(/supermerc|mercado|padaria|hortifrut|sacol[aã]o|atacad|a[cç]ougue|pao do furtini/)) return "Mercado";
+  if (d.match(/ifood|^ifd |rappi|uber eats|restaurante|lanchonete|hamburg|pizza|acai|açaí|oakberry|bar |zig|coco bambu|madero|outback|sushi|poke|burger|lanches|cafe |gelato/)) return "Restaurantes";
   if (d.match(/uberrides|uber|99|taxi|gasolina|posto|estacionamento|metro|onibus|combust/)) return "Transporte";
   if (d.match(/aluguel|condominio|luz|agua|gas|internet|net |vivo |tim |claro/)) return "Moradia";
   if (d.match(/farmacia|drogari|hospital|consulta|medico|dentista|psico|wellhub|gympass/)) return "Saúde";
