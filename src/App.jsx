@@ -912,10 +912,11 @@ function SectionTitle({ color="#22c55e", children }) {
 
 // ─── summary card ──────────────────────────────────────────────────────────
 function SCard({ title, value, color, bg }) {
+  const mob = typeof window !== "undefined" && window.innerWidth < 768;
   return (
-    <div style={{ background:bg,borderRadius:16,padding:"18px 20px" }}>
-      <p style={{ margin:"0 0 6px",fontSize:11,color:"#888",fontWeight:600,textTransform:"uppercase",letterSpacing:.8 }}>{title}</p>
-      <p style={{ margin:0,fontSize:22,fontWeight:700,color,fontFamily:"'DM Mono',monospace" }}>{value}</p>
+    <div style={{ background:bg,borderRadius:16,padding:mob?"14px 14px":"18px 20px",minWidth:0 }}>
+      <p style={{ margin:"0 0 6px",fontSize:mob?10:11,color:"#888",fontWeight:600,textTransform:"uppercase",letterSpacing:.8 }}>{title}</p>
+      <p style={{ margin:0,fontSize:mob?17:22,fontWeight:700,color,fontFamily:"'DM Mono',monospace",overflowWrap:"anywhere" }}>{value}</p>
     </div>
   );
 }
@@ -1042,7 +1043,7 @@ function Dashboard({ totalReceita, totalDespesa, totalInvestimento, saldoGeral, 
         </div>
       </Card>
 
-      <div style={{ display:"grid",gridTemplateColumns:isMob?"repeat(2,1fr)":"repeat(4,1fr)",gap:isMob?10:16 }}>
+      <div style={{ display:"grid",gridTemplateColumns:isMob?"repeat(2,minmax(0,1fr))":"repeat(4,minmax(0,1fr))",gap:isMob?10:16 }}>
         <SCard title="Receitas do mês" value={masked(totalReceita)} color="#16a34a" bg="#f0fdf4" />
         <SCard title="Despesas do mês" value={masked(totalDespesa)} color="#dc2626" bg="#fef2f2" />
         <SCard title="Aporte do mês" value={masked(totalInvestimento)} color="#7c3aed" bg="#f5f3ff" />
@@ -1500,7 +1501,7 @@ function Relatorios({ monthTx, totalReceita, totalDespesa, totalInvestimento, ma
   const investRate  = totalReceita > 0 ? ((totalInvestimento / totalReceita) * 100).toFixed(0) : 0;
   return (
     <div style={{ animation:"fadeUp .4s ease",display:"flex",flexDirection:"column",gap:20 }}>
-      <div style={{ display:"grid",gridTemplateColumns:(typeof window!=="undefined"&&window.innerWidth<768)?"repeat(2,1fr)":"repeat(4,1fr)",gap:(typeof window!=="undefined"&&window.innerWidth<768)?10:16 }}>
+      <div style={{ display:"grid",gridTemplateColumns:(typeof window!=="undefined"&&window.innerWidth<768)?"repeat(2,minmax(0,1fr))":"repeat(4,minmax(0,1fr))",gap:(typeof window!=="undefined"&&window.innerWidth<768)?10:16 }}>
         <SCard title="Receitas" value={masked(totalReceita)} color="#16a34a" bg="#f0fdf4" />
         <SCard title="Despesas" value={masked(totalDespesa)} color="#dc2626" bg="#fef2f2" />
         <SCard title="Investimentos" value={masked(totalInvestimento)} color="#7c3aed" bg="#f5f3ff" />
