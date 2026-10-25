@@ -1286,8 +1286,8 @@ function BarraTeto({ t, masked, atualizarTeto }) {
   };
   return (
     <div>
-      <div style={{ display:"flex",justifyContent:"space-between",alignItems:"baseline",gap:10,marginBottom:6 }}>
-        <span style={{ fontSize:14,fontWeight:600 }}>{ICONS[t.categorias[0]] || "📌"} {t.nome}</span>
+      <div style={{ display:"flex",justifyContent:"space-between",alignItems:"baseline",flexWrap:"wrap",columnGap:10,rowGap:2,marginBottom:6 }}>
+        <span style={{ fontSize:14,fontWeight:600,whiteSpace:"nowrap" }}>{ICONS[t.categorias[0]] || "📌"} {t.nome}</span>
         <span style={{ fontSize:13,fontFamily:"'DM Mono',monospace",whiteSpace:"nowrap" }}>
           <b style={{ color:cor }}>{masked(t.gasto)}</b>
           <span style={{ color:"#999" }}> de </span>
