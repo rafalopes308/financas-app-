@@ -589,23 +589,23 @@ export default function App() {
               {{ dashboard: "Visão Geral", lancamentos: "Lançamentos", recorrentes: "Recorrentes", investimentos: "Investimentos", contas: "Contas", relatorios: "Relatórios" }[page]}
             </h1>
           </div>
-          <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+          <div style={{ display: "flex", gap: isMobile ? 8 : 10, alignItems: "center", flexWrap: isMobile ? "wrap" : "nowrap", justifyContent: isMobile ? "center" : "flex-end" }}>
             <button onClick={() => setMonth((m) => (m - 1 + 12) % 12)} style={navBtnStyle}>‹</button>
-            <span style={{ fontSize: 15, fontWeight: 600, minWidth: 90, textAlign: "center" }}>{MONTHS[month]} {year}</span>
+            <span style={{ fontSize: 15, fontWeight: 600, minWidth: isMobile ? 72 : 90, textAlign: "center" }}>{MONTHS[month]} {year}</span>
             <button onClick={() => setMonth((m) => (m + 1) % 12)} style={navBtnStyle}>›</button>
-            <button onClick={() => setHideValues(!hideValues)} style={{ ...navBtnStyle, marginLeft: 6 }} title="Ocultar valores">{hideValues ? "👁️" : "🙈"}</button>
+            <button onClick={() => setHideValues(!hideValues)} style={{ ...navBtnStyle, marginLeft: isMobile ? 0 : 6 }} title="Ocultar valores">{hideValues ? "👁️" : "🙈"}</button>
             <div style={{ position: "relative", marginLeft: 2 }}>
               <button onClick={() => setPage("dashboard")} style={{ ...navBtnStyle }} title="Lembretes">🔔</button>
-              {(
+              {lembretes.length > 0 && (
                 <span style={{ position: "absolute", top: -5, right: -5, background: lembretes.some((l) => l.diff <= 0) ? "#dc2626" : "#f59e0b", color: "#fff", borderRadius: "50%", width: 17, height: 17, fontSize: 10, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}>
                   {lembretes.length}
                 </span>
               )}
             </div>
-            <label style={{ marginLeft: 6, padding: "9px 14px", background: "#fff", color: "#555", border: "1px solid #e5e9e2", borderRadius: 10, cursor: "pointer", fontWeight: 600, fontSize: 13, fontFamily: "'DM Sans',sans-serif", display: "inline-flex", alignItems: "center", gap: 5 }} title="Importar extrato OFX">
+            <label style={{ marginLeft: isMobile ? 0 : 6, padding: "9px 14px", background: "#fff", color: "#555", border: "1px solid #e5e9e2", borderRadius: 10, cursor: "pointer", fontWeight: 600, fontSize: 13, fontFamily: "'DM Sans',sans-serif", display: "inline-flex", alignItems: "center", gap: 5 }} title="Importar extrato OFX">
               📥 <input type="file" accept=".ofx" onChange={handleFileImport} style={{ display:"none" }} />
             </label>
-            <button onClick={() => { setForm(emptyForm()); setEditingId(null); setModal("add"); }} style={{ marginLeft: 6, padding: "9px 18px", background: "#22c55e", color: "#fff", border: "none", borderRadius: 10, cursor: "pointer", fontWeight: 600, fontSize: 14, fontFamily: "'DM Sans',sans-serif" }}>
+            <button onClick={() => { setForm(emptyForm()); setEditingId(null); setModal("add"); }} style={{ marginLeft: isMobile ? 0 : 6, flex: isMobile ? "1 1 100%" : "none", padding: "9px 18px", background: "#22c55e", color: "#fff", border: "none", borderRadius: 10, cursor: "pointer", fontWeight: 600, fontSize: 14, fontFamily: "'DM Sans',sans-serif" }}>
               + Lançamento
             </button>
           </div>
@@ -872,6 +872,8 @@ export default function App() {
       )}
 
       <style>{`
+        html, body, #root { max-width: 100%; overflow-x: hidden; }
+        body { overscroll-behavior-x: none; }
         @keyframes slideIn  { from { transform:translateX(16px);opacity:0 } to { transform:translateX(0);opacity:1 } }
         @keyframes fadeUp   { from { transform:translateY(14px);opacity:0 } to { transform:translateY(0);opacity:1 } }
         @keyframes popIn    { from { transform:scale(.82);opacity:0 } to { transform:scale(1);opacity:1 } }
@@ -922,13 +924,13 @@ function SCard({ title, value, color, bg }) {
 function TxRow({ t, masked, deleteTx, openEdit }) {
   const cfg = TYPE_CONFIG[t.type];
   return (
-    <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 0",borderBottom:"1px solid #f3f4f6" }}>
-      <div style={{ display:"flex",alignItems:"center",gap:12 }}>
+    <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,padding:"12px 0",borderBottom:"1px solid #f3f4f6" }}>
+      <div style={{ display:"flex",alignItems:"center",gap:12,flex:1,minWidth:0 }}>
         <div style={{ width:40,height:40,borderRadius:12,background:cfg.light,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0 }}>
           {ICONS[t.category] || "📌"}
         </div>
-        <div>
-          <p style={{ margin:0,fontWeight:600,fontSize:14 }}>{t.desc}</p>
+        <div style={{ minWidth:0 }}>
+          <p style={{ margin:0,fontWeight:600,fontSize:14,overflowWrap:"anywhere" }}>{t.desc}</p>
           <p style={{ margin:0,fontSize:11,color:"#aaa" }}>
             {t.category} · {t.account || "—"} · {new Date(t.date+"T12:00:00").toLocaleDateString("pt-BR")}
             {t.recurringId && <span style={{ marginLeft:6,background:"#f0fdf4",color:"#15803d",padding:"1px 6px",borderRadius:4,fontSize:10,fontWeight:600 }}>🔁 recorrente</span>}
@@ -1178,8 +1180,8 @@ function Dashboard({ totalReceita, totalDespesa, totalInvestimento, saldoGeral, 
         </div>
       </Card>
 
-      {/* lembretes */}
-      {lembretes.length > 0 && (
+      {/* lembretes — sempre visível, pra caber o "+ Novo lembrete" */}
+      {(
         <Card>
           <SectionTitle color="#f59e0b">🔔 Lembretes de Pagamento</SectionTitle>
           <div style={{ display:"flex",flexDirection:"column",gap:8 }}>
