@@ -79,6 +79,31 @@ async function fetchAllTransactions(apiKey, accountId, fromDate) {
   return all;
 }
 
+// Decide tipo e categoria de um lançamento novo. Além da categoria aprendida,
+// existem duas regras de TIPO:
+// - tipoMap: estabelecimento -> {type, category} aprendido (ex.: Pix pra corretora = investimento)
+// - esperados: aporte avisado de antemão ("vai sair R$ 1.900 essa semana"); quando bate
+//   valor e janela de datas, vira investimento e o destino é aprendido no tipoMap.
+//   Exceção: destino com o nome do próprio titular não é aprendido, senão todo Pix
+//   pra conta própria em outro banco passaria a contar como aporte.
+export function classificar(t, ctx) {
+  const chave = normalizeDesc(t.desc);
+  let type = t.type;
+  let category = ctx.categoryMap[chave] || suggestCategory(t.desc, t.type);
+  const regra = ctx.tipoMap[chave];
+  if (regra) return { type: regra.type, category: regra.category || category, aprendeu: false, usouEsperado: -1 };
+  if (t.type === "despesa") {
+    const i = ctx.esperados.findIndex((e) => Math.abs(e.valor - t.value) < 1 && t.date >= e.desde && t.date <= e.ate);
+    if (i >= 0) {
+      type = "investimento";
+      category = ctx.esperados[i].category || "Fundos";
+      const ehProprio = ctx.nomeTitular && chave.includes(normalizeDesc(ctx.nomeTitular));
+      return { type, category, aprendeu: !ehProprio, chave, usouEsperado: i };
+    }
+  }
+  return { type, category, aprendeu: false, usouEsperado: -1 };
+}
+
 export default async function handler(req, res) {
   if (req.headers.authorization !== `Bearer ${process.env.CRON_SECRET}`) {
     return res.status(401).json({ error: "Unauthorized" });
@@ -152,26 +177,51 @@ export default async function handler(req, res) {
     // data de corte: sem isso o sync reimporta os meses que o usuário apagou,
     // porque eles saíram do Firestore mas continuam dentro da janela de 45 dias
     const cfgRef = db.doc(`users/${uid}/data/syncConfig`);
-    const [txSnap, mapSnap, accSnap, cfgSnap] = await Promise.all([txRef.get(), mapRef.get(), accRef.get(), cfgRef.get()]);
-    const desde = cfgSnap.exists ? (cfgSnap.data().value || {}).desde || "" : "";
+    const tipoRef = db.doc(`users/${uid}/data/tipoMap`);
+    const espRef = db.doc(`users/${uid}/data/aportesEsperados`);
+    const [txSnap, mapSnap, accSnap, cfgSnap, tipoSnap, espSnap] = await Promise.all([
+      txRef.get(), mapRef.get(), accRef.get(), cfgRef.get(), tipoRef.get(), espRef.get(),
+    ]);
+    const syncCfg = cfgSnap.exists ? cfgSnap.data().value || {} : {};
+    const desde = syncCfg.desde || "";
+    const tipoMap = tipoSnap.exists ? tipoSnap.data().value || {} : {};
+    const esperados = espSnap.exists ? espSnap.data().value || [] : [];
     const existing = txSnap.exists ? txSnap.data().value || [] : [];
     const categoryMap = mapSnap.exists ? mapSnap.data().value || {} : {};
     const knownFitids = new Set(existing.map((t) => t.fitid).filter(Boolean));
 
+    const ctx = { categoryMap, tipoMap, esperados: [...esperados], nomeTitular: syncCfg.nomeTitular || "" };
+    let regrasMudaram = false;
+    const aportesReconhecidos = [];
     const newTxs = incoming
       .filter((t) => !knownFitids.has(t.fitid))
       .filter((t) => !desde || t.date >= desde)
-      .map((t) => ({
-        id: t.fitid,
-        type: t.type,
-        desc: t.desc,
-        value: t.value,
-        category: categoryMap[normalizeDesc(t.desc)] || suggestCategory(t.desc, t.type),
-        date: t.date,
-        account: "Inter",
-        notes: "",
-        fitid: t.fitid,
-      }));
+      .map((t) => {
+        const c = classificar(t, ctx);
+        if (c.usouEsperado >= 0) {
+          ctx.esperados.splice(c.usouEsperado, 1);
+          aportesReconhecidos.push(`${t.date} ${t.desc} ${t.value}`);
+          regrasMudaram = true;
+          if (c.aprendeu) ctx.tipoMap[c.chave] = { type: c.type, category: c.category };
+        }
+        return {
+          id: t.fitid,
+          type: c.type,
+          desc: t.desc,
+          value: t.value,
+          category: c.category,
+          date: t.date,
+          account: "Inter",
+          notes: c.usouEsperado >= 0 ? "Aporte reconhecido automaticamente" : "",
+          fitid: t.fitid,
+        };
+      });
+    if (regrasMudaram) {
+      await Promise.all([
+        tipoRef.set({ value: ctx.tipoMap }),
+        espRef.set({ value: ctx.esperados }),
+      ]);
+    }
 
     if (newTxs.length) {
       await txRef.set({ value: [...existing, ...newTxs] });
@@ -207,6 +257,7 @@ export default async function handler(req, res) {
       fetched: incoming.length,
       imported: newTxs.length,
       desde: desde || "sem corte",
+      aportesReconhecidos,
       bankBalance,
       refreshStatus,
     });
