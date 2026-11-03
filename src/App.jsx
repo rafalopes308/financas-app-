@@ -9,6 +9,22 @@ import { parseOFX, suggestCategory, normalizeDesc } from "./ofxParser";
 const fmt = (v) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v ?? 0);
 const MONTHS = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
 const TODAY = new Date();
+const OBJETIVO_INVESTIDO = 100000;
+const DY_ANUAL = 0.10; // estimativa de dividendos reinvestidos, sem variação no preço das cotas
+
+// Quantos aportes faltam pro objetivo. Com o aporte do mês ainda por fazer, ele já
+// conta como o primeiro; se já foi feito, o próximo só entra no mês que vem.
+function projetarObjetivo(investido, aporte, aporteDoMesFeito) {
+  if (aporte <= 0) return null;
+  let saldo = investido;
+  let meses = 0;
+  while (saldo < OBJETIVO_INVESTIDO && meses < 600) {
+    saldo = saldo * (1 + DY_ANUAL / 12) + aporte;
+    meses += 1;
+  }
+  const chegada = new Date(TODAY.getFullYear(), TODAY.getMonth() + meses - (aporteDoMesFeito ? 0 : 1), 1);
+  return { meses, chegada };
+}
 
 const CATEGORIES = {
   despesa:     ["Mercado","Restaurantes","Moradia","Transporte","Saúde","Lazer","Educação","Roupas","Assinaturas","Ferramentas","Esporte","Viagem","Barbeiro","Presentes","Outros"],
@@ -181,11 +197,23 @@ export default function App() {
   // ── carteira e meta de aporte ──────────────────────────────────────────────
   const manuais            = investCfg.manuais || [];
   const totalManuais       = manuais.reduce((s, i) => s + Number(i.value || 0), 0);
-  const totalInvestido     = Number(investBank.total || 0) + totalManuais;
+  // Aporte que saiu da conta depois da última atualização manual da carteira: sem
+  // somar aqui, o patrimônio cairia até alguém digitar a posição nova. Poupança fica
+  // de fora porque é o CDB do Inter, que já vem no investBank.
+  const manuaisEm          = investCfg.manuaisEm || "";
+  const aportesSemPosicao  = transactions
+    .filter((t) => t.type === "investimento" && t.category !== "Poupança" && t.date > manuaisEm)
+    .reduce((s, t) => s + t.value, 0);
+  const totalInvestido     = Number(investBank.total || 0) + totalManuais + aportesSemPosicao;
   const patrimonio         = saldoGeral + totalInvestido;
   const metaAporte         = Number(investCfg.meta || 0);
   const diaAporte          = Number(investCfg.dia || 9);
   const faltaAportar       = Math.max(0, metaAporte - totalInvestimento);
+  const mesReal            = TODAY.toISOString().slice(0, 7);
+  const aporteMesReal      = transactions
+    .filter((t) => t.type === "investimento" && t.category !== "Poupança" && t.date.startsWith(mesReal))
+    .reduce((s, t) => s + t.value, 0);
+  const projecao           = projetarObjetivo(totalInvestido, metaAporte, aporteMesReal >= metaAporte);
   // só cobra o aporte no mês corrente, e a partir do dia escolhido
   const cobrarAporte       = month === TODAY.getMonth() && year === TODAY.getFullYear()
     && TODAY.getDate() >= diaAporte && faltaAportar > 0 && metaAporte > 0;
@@ -665,8 +693,8 @@ export default function App() {
           </div>
         )}
 
-        {page === "dashboard"   && <Dashboard totalReceita={totalReceita} totalDespesa={totalDespesa} totalInvestimento={totalInvestimento} saldoGeral={saldoGeral} saldoMensal={saldoMensal} accounts={accounts} topGastos={topGastos} gastosPorCat={gastosPorCat} maxCat={maxCat} masked={masked} setModal={setModal} setForm={setForm} emptyForm={emptyForm} comparativo={comparativo} chartData={chartData} monthTx={monthTx} month={month} MONTHS={MONTHS} lembretes={lembretes} dismissReminder={dismissReminder} removeReminder={removeReminder} addLembrete={addLembrete} patrimonio={patrimonio} totalInvestido={totalInvestido} fixos={fixos} fixosTotal={fixosTotal} salarioRef={salarioRef} metaAporte={metaAporte} livreMes={livreMes} diaADia={diaADia} extras={extras} extrasTotal={extrasTotal} fixosNoMes={fixosNoMes} naoEhExtra={naoEhExtra} ignorarFixo={ignorarFixo} marcarFixo={marcarFixo} tetosStatus={tetosStatus} atualizarTeto={atualizarTeto} />}
-        {page === "investimentos" && <Investimentos investBank={investBank} investCfg={investCfg} setInvestCfg={setInvestCfg} manuais={manuais} totalManuais={totalManuais} totalInvestido={totalInvestido} totalInvestimento={totalInvestimento} metaAporte={metaAporte} diaAporte={diaAporte} masked={masked} chartData={chartData} MONTHS={MONTHS} month={month} setForm={setForm} setModal={setModal} emptyForm={emptyForm} showToast={showToast} />}
+        {page === "dashboard"   && <Dashboard totalReceita={totalReceita} totalDespesa={totalDespesa} totalInvestimento={totalInvestimento} saldoGeral={saldoGeral} saldoMensal={saldoMensal} accounts={accounts} topGastos={topGastos} gastosPorCat={gastosPorCat} maxCat={maxCat} masked={masked} setModal={setModal} setForm={setForm} emptyForm={emptyForm} comparativo={comparativo} chartData={chartData} monthTx={monthTx} month={month} MONTHS={MONTHS} lembretes={lembretes} dismissReminder={dismissReminder} removeReminder={removeReminder} addLembrete={addLembrete} patrimonio={patrimonio} totalInvestido={totalInvestido} projecao={projecao} fixos={fixos} fixosTotal={fixosTotal} salarioRef={salarioRef} metaAporte={metaAporte} livreMes={livreMes} diaADia={diaADia} extras={extras} extrasTotal={extrasTotal} fixosNoMes={fixosNoMes} naoEhExtra={naoEhExtra} ignorarFixo={ignorarFixo} marcarFixo={marcarFixo} tetosStatus={tetosStatus} atualizarTeto={atualizarTeto} />}
+        {page === "investimentos" && <Investimentos investBank={investBank} investCfg={investCfg} setInvestCfg={setInvestCfg} manuais={manuais} totalManuais={totalManuais} aportesSemPosicao={aportesSemPosicao} totalInvestido={totalInvestido} totalInvestimento={totalInvestimento} metaAporte={metaAporte} diaAporte={diaAporte} masked={masked} chartData={chartData} MONTHS={MONTHS} month={month} setForm={setForm} setModal={setModal} emptyForm={emptyForm} showToast={showToast} />}
         {page === "lancamentos" && <Lancamentos monthTx={monthTx} masked={masked} deleteTx={deleteTx} openEdit={openEdit} />}
         {page === "recorrentes" && <Recorrentes recurrings={recurrings} deleteRecurring={deleteRecurring} openEditRecurring={openEditRecurring} masked={masked} />}
         {page === "contas"      && <Contas accounts={accounts} setAccounts={setAccounts} masked={masked} setModal={setModal} />}
@@ -1042,7 +1070,7 @@ function BarChart({ data }) {
 }
 
 // ─── pages ─────────────────────────────────────────────────────────────────
-function Dashboard({ totalReceita, totalDespesa, totalInvestimento, saldoGeral, saldoMensal, accounts, topGastos, gastosPorCat, maxCat, masked, setModal, setForm, emptyForm, comparativo, chartData, monthTx, month, MONTHS, lembretes, dismissReminder, removeReminder, addLembrete, patrimonio, totalInvestido, fixos, fixosTotal, salarioRef, metaAporte, livreMes, diaADia, extras, extrasTotal, fixosNoMes, naoEhExtra, ignorarFixo, marcarFixo, tetosStatus, atualizarTeto }) {
+function Dashboard({ totalReceita, totalDespesa, totalInvestimento, saldoGeral, saldoMensal, accounts, topGastos, gastosPorCat, maxCat, masked, setModal, setForm, emptyForm, comparativo, chartData, monthTx, month, MONTHS, lembretes, dismissReminder, removeReminder, addLembrete, patrimonio, totalInvestido, projecao, fixos, fixosTotal, salarioRef, metaAporte, livreMes, diaADia, extras, extrasTotal, fixosNoMes, naoEhExtra, ignorarFixo, marcarFixo, tetosStatus, atualizarTeto }) {
   const isMob = typeof window!=="undefined" && window.innerWidth<768;
   return (
     <div style={{ animation:"fadeUp .4s ease",display:"flex",flexDirection:"column",gap:20 }}>
@@ -1061,6 +1089,8 @@ function Dashboard({ totalReceita, totalDespesa, totalInvestimento, saldoGeral, 
           </div>
         </div>
       </Card>
+
+      <RumoObjetivo investido={totalInvestido} metaAporte={metaAporte} projecao={projecao} masked={masked} MONTHS={MONTHS} />
 
       <div style={{ display:"grid",gridTemplateColumns:isMob?"repeat(2,minmax(0,1fr))":"repeat(4,minmax(0,1fr))",gap:isMob?10:16 }}>
         <SCard title="Receitas do mês" value={masked(totalReceita)} color="#16a34a" bg="#f0fdf4" />
@@ -1274,6 +1304,43 @@ function Dashboard({ totalReceita, totalDespesa, totalInvestimento, saldoGeral, 
   );
 }
 
+function RumoObjetivo({ investido, metaAporte, projecao, masked, MONTHS }) {
+  const pct = Math.min(100, (investido / OBJETIVO_INVESTIDO) * 100);
+  const chegou = investido >= OBJETIVO_INVESTIDO;
+  return (
+    <Card>
+      <SectionTitle color="#0f766e">🎯 Rumo aos R$ 100 mil investidos</SectionTitle>
+      <div style={{ display:"flex",justifyContent:"space-between",alignItems:"baseline",gap:10,marginBottom:8 }}>
+        <span style={{ fontSize:20,fontWeight:700,color:"#0f766e",fontFamily:"'DM Mono',monospace" }}>{masked(investido)}</span>
+        <span style={{ fontSize:14,fontWeight:600,color:"#666" }}>{pct.toFixed(1).replace(".", ",")}%</span>
+      </div>
+      <div style={{ position:"relative",height:14,background:"#f3f4f6",borderRadius:99,overflow:"hidden" }}>
+        <div style={{ width:`${pct}%`,height:"100%",background:"linear-gradient(90deg,#0f766e,#22c55e)",borderRadius:99,transition:"width .6s" }} />
+        {[25, 50, 75].map((m) => (
+          <div key={m} style={{ position:"absolute",top:0,bottom:0,left:`${m}%`,width:1,background:"rgba(0,0,0,.14)" }} />
+        ))}
+      </div>
+      <div style={{ position:"relative",height:16,marginTop:4,fontSize:11,color:"#999" }}>
+        {[25, 50, 75].map((m) => (
+          <span key={m} style={{ position:"absolute",left:`${m}%`,transform:"translateX(-50%)" }}>{m} mil</span>
+        ))}
+      </div>
+      {chegou ? (
+        <p style={{ margin:"10px 0 0",fontSize:16,fontWeight:700,color:"#0f766e" }}>Chegou nos R$ 100 mil! 🎉</p>
+      ) : projecao && (
+        <>
+          <p style={{ margin:"10px 0 2px",fontSize:16,fontWeight:700 }}>
+            Faltam {projecao.meses} {projecao.meses === 1 ? "mês" : "meses"} · {MONTHS[projecao.chegada.getMonth()]}/{projecao.chegada.getFullYear()}
+          </p>
+          <p style={{ margin:0,fontSize:12,color:"#888" }}>
+            Investindo {masked(metaAporte)} por mês e reinvestindo os dividendos (estimativa de 10% ao ano).
+          </p>
+        </>
+      )}
+    </Card>
+  );
+}
+
 function BarraTeto({ t, masked, atualizarTeto }) {
   const [editando, setEditando] = useState(false);
   const [valor, setValor] = useState(String(t.limite));
@@ -1403,7 +1470,7 @@ function Recorrentes({ recurrings, deleteRecurring, openEditRecurring, masked })
   );
 }
 
-function Investimentos({ investBank, investCfg, setInvestCfg, manuais, totalManuais, totalInvestido, totalInvestimento, metaAporte, diaAporte, masked, chartData, MONTHS, month, setForm, setModal, emptyForm, showToast }) {
+function Investimentos({ investBank, investCfg, setInvestCfg, manuais, totalManuais, aportesSemPosicao, totalInvestido, totalInvestimento, metaAporte, diaAporte, masked, chartData, MONTHS, month, setForm, setModal, emptyForm, showToast }) {
   const isMob = typeof window !== "undefined" && window.innerWidth < 768;
   const [nome, setNome]   = useState("");
   const [valor, setValor] = useState("");
@@ -1419,6 +1486,7 @@ function Investimentos({ investBank, investCfg, setInvestCfg, manuais, totalManu
     const existe = manuais.some((m) => m.name.trim().toLowerCase() === chave);
     setInvestCfg({
       ...investCfg,
+      manuaisEm: TODAY.toISOString().split("T")[0],
       manuais: existe
         ? manuais.map((m) => m.name.trim().toLowerCase() === chave ? { ...m, value: v } : m)
         : [...manuais, { id: Date.now(), name: nome.trim(), value: v }],
@@ -1441,6 +1509,12 @@ function Investimentos({ investBank, investCfg, setInvestCfg, manuais, totalManu
             <p style={{ margin:0,fontSize:12,opacity:.85 }}>Cadastrado por você</p>
             <p style={{ margin:0,fontSize:17,fontWeight:600 }}>{masked(totalManuais)}</p>
           </div>
+          {aportesSemPosicao > 0 && (
+            <div>
+              <p style={{ margin:0,fontSize:12,opacity:.85 }}>Aportes a atualizar</p>
+              <p style={{ margin:0,fontSize:17,fontWeight:600 }}>{masked(aportesSemPosicao)}</p>
+            </div>
+          )}
         </div>
       </Card>
 
