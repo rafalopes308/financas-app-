@@ -1330,7 +1330,7 @@ function RumoObjetivo({ investido, metaAporte, projecao, masked, MONTHS }) {
       ) : projecao && (
         <>
           <p style={{ margin:"10px 0 2px",fontSize:16,fontWeight:700 }}>
-            Faltam {projecao.meses} {projecao.meses === 1 ? "mês" : "meses"} · {MONTHS[projecao.chegada.getMonth()]}/{projecao.chegada.getFullYear()}
+            {projecao.meses === 1 ? "Falta 1 mês" : `Faltam ${projecao.meses} meses`} · {MONTHS[projecao.chegada.getMonth()]}/{projecao.chegada.getFullYear()}
           </p>
           <p style={{ margin:0,fontSize:12,color:"#888" }}>
             Investindo {masked(metaAporte)} por mês e reinvestindo os dividendos (estimativa de 10% ao ano).
