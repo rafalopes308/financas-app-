@@ -27,14 +27,14 @@ function projetarObjetivo(investido, aporte, aporteDoMesFeito) {
 }
 
 const CATEGORIES = {
-  despesa:     ["Mercado","Restaurantes","Moradia","Transporte","Saúde","Lazer","Educação","Roupas","Assinaturas","Ferramentas","Esporte","Viagem","Barbeiro","Presentes","Outros"],
+  despesa:     ["Mercado","Restaurantes","Moradia","Transporte","Saúde","Lazer","Educação","Livros","Roupas","Assinaturas","Ferramentas","Esporte","Viagem","Barbeiro","Presentes","Outros"],
   receita:     ["Salário","Freelance","Aluguel recebido","Dividendos","Presente","Outros"],
   investimento:["Tesouro Direto","Ações","Fundos","Cripto","Poupança","Previdência","Outros"],
 };
 
 const ICONS = {
   "Alimentação":"🍽️","Mercado":"🛒","Restaurantes":"🍽️","Moradia":"🏠","Transporte":"🚗","Saúde":"💊","Lazer":"🎮",
-  "Educação":"📚","Roupas":"👕","Assinaturas":"📱","Ferramentas":"🛠️","Esporte":"💚","Viagem":"✈️","Barbeiro":"💈","Presentes":"🎁","Salário":"💼","Freelance":"💻",
+  "Educação":"📚","Livros":"📖","Roupas":"👕","Assinaturas":"📱","Ferramentas":"🛠️","Esporte":"💚","Viagem":"✈️","Barbeiro":"💈","Presentes":"🎁","Salário":"💼","Freelance":"💻",
   "Aluguel recebido":"🏢","Dividendos":"💰","Presente":"🎁","Tesouro Direto":"🏛️","Ações":"📈",
   "Fundos":"🏦","Cripto":"₿","Poupança":"🐷","Previdência":"🔒","Outros":"📌",
 };

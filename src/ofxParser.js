@@ -69,6 +69,7 @@ export function suggestCategory(desc, type) {
   if (d.match(/netflix|spotify|prime|disney|hbo|globoplay|youtube|apple\.com|icloud|itunes/)) return "Assinaturas";
   if (d.match(/cinema|steam|playstat|xbox/)) return "Lazer";
   if (d.match(/escola|faculdade|curso|udemy|alura/)) return "Educação";
+  if (d.match(/livrari|livros|leitura|saraiva|travessa|estante virtual|kindle|amazon livros/)) return "Livros";
   if (d.match(/zara|renner|riachuelo|c&a|nike|adidas/)) return "Roupas";
   if (d.match(/academia|smartfit|crossfit/)) return "Esporte";
   return "Outros";
